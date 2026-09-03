@@ -37,7 +37,53 @@ export default function Home() {
   }
 
   async function fetchApps() {
-    try
+    try {
+      const { data, error } = await supabase
+        .from('apps')
+        .select('*')
+        .order('order', { ascending: true })
+      
+      if (error) throw error
+      setApps(data || [])
+    } catch (error) {
+      console.error('Error fetching apps:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleUpdate(id: string) {
+    try {
+      const { error } = await supabase
+        .from('apps')
+        .update(editData)
+        .eq('id', id)
+      
+      if (error) throw error
+      setEditingId(null)
+      fetchApps()
+    } catch (error) {
+      console.error('Error updating app:', error)
+    }
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm('Delete this app?')) return
+    
+    try {
+      const { error } = await supabase
+        .from('apps')
+        .delete()
+        .eq('id', id)
+      
+      if (error) throw error
+      fetchApps()
+    } catch (error) {
+      console.error('Error deleting app:', error)
+    }
+  }
+
+  async function handleLogout() {
 cat > app/page.tsx << 'ENDFILE'
 'use client'
 
