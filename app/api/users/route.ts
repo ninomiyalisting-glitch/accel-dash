@@ -9,13 +9,17 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
     }
 
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .order('created_at', { ascending: false })
+    const { data, error } = await supabase.auth.admin.listUsers()
     
     if (error) throw error
-    return NextResponse.json(data)
+    
+    const users = data.users.map(u => ({
+      id: u.id,
+      email: u.email,
+      created_at: u.created_at
+    }))
+    
+    return NextResponse.json(users)
   } catch (error) {
     console.error('Error fetching users:', error)
     return NextResponse.json({ error: 'Failed to fetch users' }, { status: 500 })
@@ -38,6 +42,7 @@ export async function POST(req: NextRequest) {
 
     const { data, error } = await supabase.auth.admin.createUser({
       email,
+      password: Math.random().toString(36).slice(-12),
       email_confirm: true
     })
 
