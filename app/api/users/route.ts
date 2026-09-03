@@ -9,15 +9,28 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
     }
 
+    const users: any[] = []
+    
+    if (session.user.email) {
+      users.push({
+        id: session.user.id,
+        email: session.user.email,
+        created_at: session.user.created_at || new Date().toISOString()
+      })
+    }
+
     const { data, error } = await supabase.auth.admin.listUsers()
     
-    if (error) throw error
-    
-    const users = data.users.map(u => ({
-      id: u.id,
-      email: u.email,
-      created_at: u.created_at
-    }))
+    if (!error && data?.users) {
+      const otherUsers = data.users
+        .filter(u => u.email !== session.user.email)
+        .map(u => ({
+          id: u.id,
+          email: u.email,
+          created_at: u.created_at
+        }))
+      users.push(...otherUsers)
+    }
     
     return NextResponse.json(users)
   } catch (error) {
@@ -40,28 +53,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Only @accel-partners.co.jp emails allowed' }, { status: 400 })
     }
 
-    const tempPassword = Math.random().toString(36).slice(-12)
-
-    const { data, error } = await supabase.auth.admin.createUser({
-      email,
-      password: tempPassword,
-      email_confirm: true
+    const { error: signUpError } = await supabase.auth.signUp({
+      email: email,
+      password: Math.random().toString(36).slice(-12),
+      options: {
+        emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL || 'https://accel-dash.com'}/login`
+      }
     })
 
-    if (error) throw error
-
-    await supabase.auth.resend({
-      type: 'recovery',
-      email: email,
-      options: {
-        redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || 'https://accel-dash.com'}/login`
-      }
-    }).catch(e => console.log('Email send note:', e))
+    if (signUpError) throw signUpError
 
     return NextResponse.json({ 
-      id: data.user?.id,
-      email: data.user?.email,
-      created_at: data.user?.created_at
+      email: email,
+      message: '招待メールを送信しました'
     }, { status: 201 })
   } catch (error) {
     console.error('Error creating user:', error)
