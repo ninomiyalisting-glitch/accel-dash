@@ -51,6 +51,8 @@ export default function Home() {
     fetchApps()
     if (email.endsWith('@accel-partners.co.jp')) {
       fetchUsers()
+    } else {
+      setLoading(false)
     }
   }
 
@@ -73,6 +75,10 @@ export default function Home() {
   async function fetchUsers() {
     try {
       const response = await fetch('/api/users')
+      if (response.status === 403) {
+        console.warn('User management not available')
+        return
+      }
       if (!response.ok) throw new Error('Failed to fetch users')
       const data = await response.json()
       setUsers(data)
@@ -206,85 +212,91 @@ export default function Home() {
 
         {tab === 'apps' && (
           <div className="grid gap-6">
-            {apps.map((app) => (
-              <div key={app.id} className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
-                {editingId === app.id ? (
-                  <div className="space-y-4">
-                    <input
-                      type="text"
-                      value={editData.title || app.title}
-                      onChange={(e) => setEditData({ ...editData, title: e.target.value })}
-                      className="w-full px-3 py-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700"
-                      placeholder="タイトル"
-                    />
-                    <textarea
-                      value={editData.description || app.description}
-                      onChange={(e) => setEditData({ ...editData, description: e.target.value })}
-                      className="w-full px-3 py-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700"
-                      placeholder="説明"
-                      rows={3}
-                    />
-                    <input
-                      type="text"
-                      value={editData.image_url || app.image_url || ''}
-                      onChange={(e) => setEditData({ ...editData, image_url: e.target.value })}
-                      className="w-full px-3 py-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700"
-                      placeholder="画像URL"
-                    />
-                    <input
-                      type="number"
-                      value={editData.order ?? app.order}
-                      onChange={(e) => setEditData({ ...editData, order: parseInt(e.target.value) })}
-                      className="w-full px-3 py-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700"
-                      placeholder="順序"
-                    />
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleUpdate(app.id)}
-                        className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
-                      >
-                        保存
-                      </button>
-                      <button
-                        onClick={() => setEditingId(null)}
-                        className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
-                      >
-                        キャンセル
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <h2 className="text-2xl font-bold mb-2">{app.title}</h2>
-                      <p className="text-gray-600 dark:text-gray-400 mb-2">{app.description}</p>
-                      <a href={`https://${app.slug}.accel-dash.com`} className="text-blue-500 hover:underline">
-                        {app.slug}.accel-dash.com →
-                      </a>
-                    </div>
-                    {isAdmin && (
-                      <div className="flex gap-2 ml-4">
+            {apps.length === 0 ? (
+              <div className="text-center text-gray-600 dark:text-gray-400 py-12">
+                アプリがありません
+              </div>
+            ) : (
+              apps.map((app) => (
+                <div key={app.id} className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
+                  {editingId === app.id ? (
+                    <div className="space-y-4">
+                      <input
+                        type="text"
+                        value={editData.title || app.title}
+                        onChange={(e) => setEditData({ ...editData, title: e.target.value })}
+                        className="w-full px-3 py-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700"
+                        placeholder="タイトル"
+                      />
+                      <textarea
+                        value={editData.description || app.description}
+                        onChange={(e) => setEditData({ ...editData, description: e.target.value })}
+                        className="w-full px-3 py-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700"
+                        placeholder="説明"
+                        rows={3}
+                      />
+                      <input
+                        type="text"
+                        value={editData.image_url || app.image_url || ''}
+                        onChange={(e) => setEditData({ ...editData, image_url: e.target.value })}
+                        className="w-full px-3 py-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700"
+                        placeholder="画像URL"
+                      />
+                      <input
+                        type="number"
+                        value={editData.order ?? app.order}
+                        onChange={(e) => setEditData({ ...editData, order: parseInt(e.target.value) })}
+                        className="w-full px-3 py-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700"
+                        placeholder="順序"
+                      />
+                      <div className="flex gap-2">
                         <button
-                          onClick={() => {
-                            setEditingId(app.id)
-                            setEditData(app)
-                          }}
-                          className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+                          onClick={() => handleUpdate(app.id)}
+                          className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
                         >
-                          <Pencil size={20} />
+                          保存
                         </button>
                         <button
-                          onClick={() => handleDelete(app.id)}
-                          className="p-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
+                          onClick={() => setEditingId(null)}
+                          className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
                         >
-                          <Trash2 size={20} />
+                          キャンセル
                         </button>
                       </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            ))}
+                    </div>
+                  ) : (
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <h2 className="text-2xl font-bold mb-2">{app.title}</h2>
+                        <p className="text-gray-600 dark:text-gray-400 mb-2">{app.description}</p>
+                        <a href={`https://${app.slug}.accel-dash.com`} className="text-blue-500 hover:underline">
+                          {app.slug}.accel-dash.com →
+                        </a>
+                      </div>
+                      {isAdmin && (
+                        <div className="flex gap-2 ml-4">
+                          <button
+                            onClick={() => {
+                              setEditingId(app.id)
+                              setEditData(app)
+                            }}
+                            className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+                          >
+                            <Pencil size={20} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(app.id)}
+                            className="p-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
+                          >
+                            <Trash2 size={20} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
           </div>
         )}
 
@@ -313,35 +325,41 @@ export default function Home() {
 
             <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
               <h2 className="text-2xl font-bold mb-4">ユーザー一覧 ({users.length})</h2>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead className="border-b dark:border-slate-700">
-                    <tr>
-                      <th className="px-4 py-2">メールアドレス</th>
-                      <th className="px-4 py-2">作成日</th>
-                      <th className="px-4 py-2">操作</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {users.map((user) => (
-                      <tr key={user.id} className="border-b dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800">
-                        <td className="px-4 py-3">{user.email}</td>
-                        <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
-                          {new Date(user.created_at).toLocaleDateString('ja-JP')}
-                        </td>
-                        <td className="px-4 py-3">
-                          <button
-                            onClick={() => handleDeleteUser(user.id)}
-                            className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-sm"
-                          >
-                            削除
-                          </button>
-                        </td>
+              {users.length === 0 ? (
+                <div className="text-center text-gray-600 dark:text-gray-400 py-12">
+                  ユーザーがありません
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead className="border-b dark:border-slate-700">
+                      <tr>
+                        <th className="px-4 py-2">メールアドレス</th>
+                        <th className="px-4 py-2">作成日</th>
+                        <th className="px-4 py-2">操作</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {users.map((user) => (
+                        <tr key={user.id} className="border-b dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800">
+                          <td className="px-4 py-3">{user.email}</td>
+                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
+                            {new Date(user.created_at).toLocaleDateString('ja-JP')}
+                          </td>
+                          <td className="px-4 py-3">
+                            <button
+                              onClick={() => handleDeleteUser(user.id)}
+                              className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-sm"
+                            >
+                              削除
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </div>
         )}
