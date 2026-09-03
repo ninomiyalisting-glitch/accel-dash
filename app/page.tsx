@@ -84,7 +84,75 @@ export default function Home() {
   }
 
   async function handleLogout() {
-cat > app/page.tsx << 'ENDFILE'
+    await signOut()
+    router.push('/login')
+  }
+
+  if (loading) {
+    return <div className="flex items-center justify-center h-screen">Loading...</div>
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-8">
+      <div className="max-w-4xl mx-auto">
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-3xl font-bold">Accel Dash</h1>
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
+          >
+            <LogOut size={20} />
+            Logout
+          </button>
+        </div>
+
+        <div className="grid gap-6">
+          {apps.map((app) => (
+            <div key={app.id} className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
+              {editingId === app.id ? (
+                <div className="space-y-4">
+                  <input
+                    type="text"
+                    value={editData.title || app.title}
+                    onChange={(e) => setEditData({ ...editData, title: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700"
+                    placeholder="Title"
+                  />
+                  <textarea
+                    value={editData.description || app.description}
+                    onChange={(e) => setEditData({ ...editData, description: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700"
+                    placeholder="Description"
+                    rows={3}
+                  />
+                  <input
+                    type="text"
+                    value={editData.image_url || app.image_url || ''}
+                    onChange={(e) => setEditData({ ...editData, image_url: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700"
+                    placeholder="Image URL"
+                  />
+                  <input
+                    type="number"
+                    value={editData.order ?? app.order}
+                    onChange={(e) => setEditData({ ...editData, order: parseInt(e.target.value) })}
+                    className="w-full px-3 py-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700"
+                    placeholder="Order"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleUpdate(app.id)}
+                      className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
+                    >
+                      Save
+                    </button>
+                    <button
+                      onClick={() => setEditingId(null)}
+                      className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
+                    >
+                      Cancel
+                    </button>
+cat > app/page.tsx << 'EOF'
 'use client'
 
 import { useEffect, useState } from 'react'
