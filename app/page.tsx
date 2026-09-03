@@ -97,7 +97,7 @@ export default function Home() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Delete this app?')) return
+    if (!confirm('このアプリを削除しますか？')) return
     
     try {
       const { error } = await supabase
@@ -125,23 +125,23 @@ export default function Home() {
 
       if (!response.ok) {
         const error = await response.json()
-        alert(error.error || 'Failed to add user')
+        alert(error.error || 'ユーザーの追加に失敗しました')
         return
       }
 
       setNewUserEmail('')
       fetchUsers()
-      alert('User added successfully!')
+      alert('ユーザーを追加しました')
     } catch (error) {
       console.error('Error adding user:', error)
-      alert('Failed to add user')
+      alert('ユーザーの追加に失敗しました')
     } finally {
       setUserLoading(false)
     }
   }
 
   async function handleDeleteUser(userId: string) {
-    if (!confirm('Delete this user?')) return
+    if (!confirm('このユーザーを削除しますか？')) return
 
     try {
       const response = await fetch(`/api/users?id=${userId}`, {
@@ -152,7 +152,7 @@ export default function Home() {
       fetchUsers()
     } catch (error) {
       console.error('Error deleting user:', error)
-      alert('Failed to delete user')
+      alert('ユーザーの削除に失敗しました')
     }
   }
 
@@ -162,20 +162,20 @@ export default function Home() {
   }
 
   if (loading) {
-    return <div className="flex items-center justify-center h-screen">Loading...</div>
+    return <div className="flex items-center justify-center h-screen">読み込み中...</div>
   }
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-8">
       <div className="max-w-4xl mx-auto">
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold">Accel Dash</h1>
+          <h1 className="text-3xl font-bold">アクセルダッシュ</h1>
           <button
             onClick={handleLogout}
             className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
           >
             <LogOut size={20} />
-            Logout
+            ログアウト
           </button>
         </div>
 
@@ -189,7 +189,7 @@ export default function Home() {
                   : 'text-gray-600 dark:text-gray-400'
               }`}
             >
-              Apps
+              アプリ
             </button>
             <button
               onClick={() => setTab('users')}
@@ -199,7 +199,7 @@ export default function Home() {
                   : 'text-gray-600 dark:text-gray-400'
               }`}
             >
-              Users
+              ユーザー
             </button>
           </div>
         )}
@@ -215,13 +215,13 @@ export default function Home() {
                       value={editData.title || app.title}
                       onChange={(e) => setEditData({ ...editData, title: e.target.value })}
                       className="w-full px-3 py-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700"
-                      placeholder="Title"
+                      placeholder="タイトル"
                     />
                     <textarea
                       value={editData.description || app.description}
                       onChange={(e) => setEditData({ ...editData, description: e.target.value })}
                       className="w-full px-3 py-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700"
-                      placeholder="Description"
+                      placeholder="説明"
                       rows={3}
                     />
                     <input
@@ -229,27 +229,27 @@ export default function Home() {
                       value={editData.image_url || app.image_url || ''}
                       onChange={(e) => setEditData({ ...editData, image_url: e.target.value })}
                       className="w-full px-3 py-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700"
-                      placeholder="Image URL"
+                      placeholder="画像URL"
                     />
                     <input
                       type="number"
                       value={editData.order ?? app.order}
                       onChange={(e) => setEditData({ ...editData, order: parseInt(e.target.value) })}
                       className="w-full px-3 py-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700"
-                      placeholder="Order"
+                      placeholder="順序"
                     />
                     <div className="flex gap-2">
                       <button
                         onClick={() => handleUpdate(app.id)}
                         className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
                       >
-                        Save
+                        保存
                       </button>
                       <button
                         onClick={() => setEditingId(null)}
                         className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
                       >
-                        Cancel
+                        キャンセル
                       </button>
                     </div>
                   </div>
@@ -258,9 +258,9 @@ export default function Home() {
                     <div className="flex-1">
                       <h2 className="text-2xl font-bold mb-2">{app.title}</h2>
                       <p className="text-gray-600 dark:text-gray-400 mb-2">{app.description}</p>
-<a href={`https://${app.slug}.accel-dash.com`} className="text-blue-500 hover:underline">
-  {app.slug}.accel-dash.com →
-</a>
+                      <a href={`https://${app.slug}.accel-dash.com`} className="text-blue-500 hover:underline">
+                        {app.slug}.accel-dash.com →
+                      </a>
                     </div>
                     {isAdmin && (
                       <div className="flex gap-2 ml-4">
@@ -291,7 +291,7 @@ export default function Home() {
         {tab === 'users' && isAdmin && (
           <div className="space-y-6">
             <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
-              <h2 className="text-2xl font-bold mb-4">Add New User</h2>
+              <h2 className="text-2xl font-bold mb-4">新規ユーザー追加</h2>
               <div className="flex gap-2">
                 <input
                   type="email"
@@ -306,20 +306,20 @@ export default function Home() {
                   className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-400 flex items-center gap-2"
                 >
                   <Plus size={20} />
-                  Add
+                  追加
                 </button>
               </div>
             </div>
 
             <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
-              <h2 className="text-2xl font-bold mb-4">Users ({users.length})</h2>
+              <h2 className="text-2xl font-bold mb-4">ユーザー一覧 ({users.length})</h2>
               <div className="overflow-x-auto">
                 <table className="w-full text-left">
                   <thead className="border-b dark:border-slate-700">
                     <tr>
-                      <th className="px-4 py-2">Email</th>
-                      <th className="px-4 py-2">Created</th>
-                      <th className="px-4 py-2">Action</th>
+                      <th className="px-4 py-2">メールアドレス</th>
+                      <th className="px-4 py-2">作成日</th>
+                      <th className="px-4 py-2">操作</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -334,7 +334,7 @@ export default function Home() {
                             onClick={() => handleDeleteUser(user.id)}
                             className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-sm"
                           >
-                            Delete
+                            削除
                           </button>
                         </td>
                       </tr>

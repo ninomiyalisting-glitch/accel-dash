@@ -29,7 +29,7 @@ export default function LoginPage() {
         router.push('/')
       }
     } catch (err: any) {
-      setError(err.message || 'Login failed')
+      setError(err.message || 'ログインに失敗しました')
     } finally {
       setLoading(false)
     }
@@ -38,11 +38,11 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center p-4">
       <div className="bg-white dark:bg-slate-900 rounded-lg shadow-xl p-8 w-full max-w-md">
-        <h1 className="text-3xl font-bold text-center mb-8">Accel Dash</h1>
+        <h1 className="text-3xl font-bold text-center mb-8">アクセルダッシュ</h1>
 
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium mb-2">Email</label>
+            <label className="block text-sm font-medium mb-2">メールアドレス</label>
             <div className="relative">
               <Mail className="absolute left-3 top-3 text-gray-400" size={20} />
               <input
@@ -57,7 +57,7 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-2">Password</label>
+            <label className="block text-sm font-medium mb-2">パスワード</label>
             <div className="relative">
               <Lock className="absolute left-3 top-3 text-gray-400" size={20} />
               <input
@@ -78,12 +78,12 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-400 font-semibold transition"
           >
-            {loading ? 'Logging in...' : 'Log In'}
+            {loading ? 'ログイン中...' : 'ログイン'}
           </button>
         </form>
 
         <p className="text-center text-sm text-gray-600 dark:text-gray-400 mt-6">
-          Employee access only
+          従業員のみアクセス可能
         </p>
       </div>
     </div>
