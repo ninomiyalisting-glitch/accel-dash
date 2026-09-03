@@ -258,12 +258,9 @@ export default function Home() {
                     <div className="flex-1">
                       <h2 className="text-2xl font-bold mb-2">{app.title}</h2>
                       <p className="text-gray-600 dark:text-gray-400 mb-2">{app.description}</p>
-                      
-                        href={`https://${app.slug}.accel-dash.com`}
-                        className="text-blue-500 hover:underline"
-                      >
-                        {app.slug}.accel-dash.com →
-                      </a>
+<a href={`https://${app.slug}.accel-dash.com`} className="text-blue-500 hover:underline">
+  {app.slug}.accel-dash.com →
+</a>
                     </div>
                     {isAdmin && (
                       <div className="flex gap-2 ml-4">
