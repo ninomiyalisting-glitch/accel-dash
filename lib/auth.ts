@@ -1,13 +1,22 @@
 import { supabase } from './supabase'
 
-export async function signInWithMagicLink(email: string) {
-  const { error } = await supabase.auth.signInWithOtp({
+export async function signInWithPassword(email: string, password: string) {
+  const { data, error } = await supabase.auth.signInWithPassword({
     email,
-    options: {
-      emailRedirectTo: `${window.location.origin}/auth/callback`,
-    },
+    password
   })
-  return { error }
+  return { data, error }
+}
+
+export async function signUpWithPassword(email: string, password: string) {
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      emailRedirectTo: `${typeof window !== 'undefined' ? window.location.origin : ''}/auth/callback`
+    }
+  })
+  return { data, error }
 }
 
 export async function signOut() {
