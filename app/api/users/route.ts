@@ -40,14 +40,29 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Only @accel-partners.co.jp emails allowed' }, { status: 400 })
     }
 
+    const tempPassword = Math.random().toString(36).slice(-12)
+
     const { data, error } = await supabase.auth.admin.createUser({
       email,
-      password: Math.random().toString(36).slice(-12),
+      password: tempPassword,
       email_confirm: true
     })
 
     if (error) throw error
-    return NextResponse.json(data, { status: 201 })
+
+    await supabase.auth.resend({
+      type: 'recovery',
+      email: email,
+      options: {
+        redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || 'https://accel-dash.com'}/login`
+      }
+    }).catch(e => console.log('Email send note:', e))
+
+    return NextResponse.json({ 
+      id: data.user?.id,
+      email: data.user?.email,
+      created_at: data.user?.created_at
+    }, { status: 201 })
   } catch (error) {
     console.error('Error creating user:', error)
     return NextResponse.json({ error: 'Failed to create user' }, { status: 500 })

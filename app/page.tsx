@@ -175,8 +175,15 @@ export default function Home() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-8">
       <div className="max-w-4xl mx-auto">
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold">アクセルダッシュ</h1>
-          <button
+const { data: { session } } = await supabase.auth.getSession()
+<div>
+  <h1 className="text-3xl font-bold">アクセルダッシュ</h1>
+  {session?.user?.email && (
+    <p className="text-sm text-gray-600 dark:text-gray-400">
+      ログイン中：{session.user.email}
+    </p>
+  )}
+</div>          <button
             onClick={handleLogout}
             className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
           >
