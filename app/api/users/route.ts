@@ -3,27 +3,34 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(req: NextRequest) {
   try {
-    const { data: { session } } = await supabase.auth.getSession()
+    const authHeader = req.headers.get('Authorization')
     
-    if (!session?.user?.email?.endsWith('@accel-partners.co.jp')) {
+    if (!authHeader) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+    }
+
+    const token = authHeader.replace('Bearer ', '')
+    const { data: { user }, error } = await supabase.auth.getUser(token)
+    
+    if (error || !user?.email?.endsWith('@accel-partners.co.jp')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
     }
 
     const users: any[] = []
     
-    if (session.user.email) {
+    if (user.email) {
       users.push({
-        id: session.user.id,
-        email: session.user.email,
-        created_at: session.user.created_at || new Date().toISOString()
+        id: user.id,
+        email: user.email,
+        created_at: user.created_at || new Date().toISOString()
       })
     }
 
-    const { data, error } = await supabase.auth.admin.listUsers()
+    const { data, error: listError } = await supabase.auth.admin.listUsers()
     
-    if (!error && data?.users) {
+    if (!listError && data?.users) {
       const otherUsers = data.users
-        .filter(u => u.email !== session.user.email)
+        .filter(u => u.email !== user.email)
         .map(u => ({
           id: u.id,
           email: u.email,
@@ -41,9 +48,16 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { data: { session } } = await supabase.auth.getSession()
+    const authHeader = req.headers.get('Authorization')
     
-    if (!session?.user?.email?.endsWith('@accel-partners.co.jp')) {
+    if (!authHeader) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+    }
+
+    const token = authHeader.replace('Bearer ', '')
+    const { data: { user }, error } = await supabase.auth.getUser(token)
+    
+    if (error || !user?.email?.endsWith('@accel-partners.co.jp')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
     }
 
@@ -75,9 +89,16 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const { data: { session } } = await supabase.auth.getSession()
+    const authHeader = req.headers.get('Authorization')
     
-    if (!session?.user?.email?.endsWith('@accel-partners.co.jp')) {
+    if (!authHeader) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+    }
+
+    const token = authHeader.replace('Bearer ', '')
+    const { data: { user }, error } = await supabase.auth.getUser(token)
+    
+    if (error || !user?.email?.endsWith('@accel-partners.co.jp')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
     }
 
@@ -88,9 +109,9 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'User ID required' }, { status: 400 })
     }
 
-    const { error } = await supabase.auth.admin.deleteUser(userId)
+    const { error: deleteError } = await supabase.auth.admin.deleteUser(userId)
 
-    if (error) throw error
+    if (deleteError) throw deleteError
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('Error deleting user:', error)
