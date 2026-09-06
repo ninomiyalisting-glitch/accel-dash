@@ -28,8 +28,9 @@ export async function GET() {
 }
 
 export async function PATCH(req: NextRequest) {
-  const me = await requireAdmin(req)
-  if (!me) return fail('権限がありません', 403)
+  const auth = await requireAdmin(req)
+  if (!auth.ok) return fail(auth.message, auth.status)
+  const me = auth.user
 
   const body = await req.json().catch(() => null)
   if (!body?.id) return fail('アプリ ID が必要です')
@@ -50,8 +51,9 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const me = await requireAdmin(req)
-  if (!me) return fail('権限がありません', 403)
+  const auth = await requireAdmin(req)
+  if (!auth.ok) return fail(auth.message, auth.status)
+  const me = auth.user
 
   const body = await req.json().catch(() => ({}))
   const values = pick(body)
@@ -63,8 +65,9 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const me = await requireAdmin(req)
-  if (!me) return fail('権限がありません', 403)
+  const auth = await requireAdmin(req)
+  if (!auth.ok) return fail(auth.message, auth.status)
+  const me = auth.user
 
   const id = new URL(req.url).searchParams.get('id')
   if (!id) return fail('アプリ ID が必要です')

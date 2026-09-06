@@ -4,8 +4,8 @@ import { requireAdmin } from '@/lib/supabaseAdmin'
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
-  const me = await requireAdmin(req)
-  if (!me) return NextResponse.json({ error: '権限がありません' }, { status: 403 })
+  const auth = await requireAdmin(req)
+  if (!auth.ok) return NextResponse.json({ error: auth.message }, { status: auth.status })
 
   const key = process.env.UNSPLASH_ACCESS_KEY
   if (!key) {

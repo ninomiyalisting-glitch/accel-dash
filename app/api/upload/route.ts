@@ -20,8 +20,9 @@ async function ensureBucket() {
 }
 
 export async function POST(req: NextRequest) {
-  const me = await requireAdmin(req)
-  if (!me) return fail('権限がありません', 403)
+  const auth = await requireAdmin(req)
+  if (!auth.ok) return fail(auth.message, auth.status)
+  const me = auth.user
 
   const form = await req.formData().catch(() => null)
   const file = form?.get('file')

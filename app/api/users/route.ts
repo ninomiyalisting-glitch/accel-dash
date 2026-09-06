@@ -8,8 +8,9 @@ function fail(message: string, status = 400) {
 }
 
 export async function GET(req: NextRequest) {
-  const me = await requireAdmin(req)
-  if (!me) return fail('権限がありません', 403)
+  const auth = await requireAdmin(req)
+  if (!auth.ok) return fail(auth.message, auth.status)
+  const me = auth.user
 
   const { data, error } = await supabaseAdmin.auth.admin.listUsers({ perPage: 200 })
   if (error) return fail(error.message, 500)
@@ -29,8 +30,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const me = await requireAdmin(req)
-  if (!me) return fail('権限がありません', 403)
+  const auth = await requireAdmin(req)
+  if (!auth.ok) return fail(auth.message, auth.status)
+  const me = auth.user
 
   const { email } = await req.json().catch(() => ({ email: '' }))
   const address = String(email || '').trim().toLowerCase()
@@ -53,8 +55,9 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const me = await requireAdmin(req)
-  if (!me) return fail('権限がありません', 403)
+  const auth = await requireAdmin(req)
+  if (!auth.ok) return fail(auth.message, auth.status)
+  const me = auth.user
 
   const id = new URL(req.url).searchParams.get('id')
   if (!id) return fail('ユーザー ID が必要です')
