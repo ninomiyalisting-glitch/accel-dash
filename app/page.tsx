@@ -1,3 +1,4 @@
+cat > app/page.tsx << 'ENDFILE'
 'use client'
 
 import { useEffect, useState } from 'react'
@@ -68,12 +69,18 @@ export default function Home() {
 
   async function fetchUsers() {
     try {
-      const res = await fetch('/api/users')
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+
+      const token = session.access_token
+      const res = await fetch('/api/users', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
       if (res.ok) {
         const data = await res.json()
         setUsers(data)
-      } else if (res.status === 403) {
-        console.warn('User fetch skipped: not admin')
       }
     } catch (err) {
       console.error('Error fetching users:', err)
@@ -114,17 +121,22 @@ export default function Home() {
     
     setUserLoading(true)
     try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+
+      const token = session.access_token
       const res = await fetch('/api/users', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ email: newUserEmail })
       })
       
       if (res.ok) {
         setNewUserEmail('')
         await fetchUsers()
-      } else {
-        alert('ユーザー追加に失敗しました')
       }
     } finally {
       setUserLoading(false)
@@ -133,10 +145,15 @@ export default function Home() {
 
   async function handleDeleteUser(userId: string) {
     try {
-      const res = await fetch('/api/users', {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+
+      const token = session.access_token
+      const res = await fetch(`/api/users?id=${userId}`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId })
+        headers: { 
+          'Authorization': `Bearer ${token}`
+        }
       })
       
       if (res.ok) {
@@ -153,20 +170,31 @@ export default function Home() {
   }
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center">読み込み中...</div>
+    return <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>読み込み中...</div>
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-8">
-      <div className="max-w-4xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
-          <div className="flex items-center gap-4">
-            <img src="/favicon.ico" alt="Accel Partners" className="w-10 h-10" />
-            <h1 className="text-3xl font-bold">アクセルダッシュ</h1>
+    <div style={{ minHeight: '100vh', backgroundColor: '#ffffff', color: '#145200', padding: '32px' }}>
+      <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <img src="/favicon.ico" alt="Accel Partners" style={{ width: '40px', height: '40px' }} />
+            <h1 style={{ fontSize: '32px', fontWeight: 'bold', margin: 0 }}>アクセルダッシュ</h1>
           </div>
           <button
             onClick={handleLogout}
-            className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '12px 16px',
+              backgroundColor: '#ef4444',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontSize: '16px'
+            }}
           >
             <LogOut size={20} />
             ログアウト
@@ -174,22 +202,38 @@ export default function Home() {
         </div>
 
         {session?.user?.email && (
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+          <p style={{ fontSize: '14px', color: '#666', marginBottom: '24px' }}>
             ログイン中：{session.user.email}
           </p>
         )}
 
         {isAdmin && (
-          <div className="flex gap-2 mb-6 border-b">
+          <div style={{ display: 'flex', gap: '16px', marginBottom: '24px', borderBottom: '1px solid #ddd', paddingBottom: '16px' }}>
             <button
               onClick={() => setTab('apps')}
-              className={`px-4 py-2 font-semibold ${tab === 'apps' ? 'border-b-2 border-blue-500 text-blue-500' : 'text-gray-600 dark:text-gray-400'}`}
+              style={{
+                padding: '12px 16px',
+                fontWeight: '600',
+                backgroundColor: 'transparent',
+                border: 'none',
+                borderBottom: tab === 'apps' ? '2px solid #279300' : 'none',
+                color: tab === 'apps' ? '#279300' : '#666',
+                cursor: 'pointer'
+              }}
             >
               アプリ
             </button>
             <button
               onClick={() => setTab('users')}
-              className={`px-4 py-2 font-semibold ${tab === 'users' ? 'border-b-2 border-blue-500 text-blue-500' : 'text-gray-600 dark:text-gray-400'}`}
+              style={{
+                padding: '12px 16px',
+                fontWeight: '600',
+                backgroundColor: 'transparent',
+                border: 'none',
+                borderBottom: tab === 'users' ? '2px solid #279300' : 'none',
+                color: tab === 'users' ? '#279300' : '#666',
+                cursor: 'pointer'
+              }}
             >
               ユーザー
             </button>
@@ -198,57 +242,57 @@ export default function Home() {
 
         {tab === 'apps' && (
           <div>
-            <h2 className="text-2xl font-bold mb-4">アプリ一覧</h2>
+            <h2 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '16px' }}>アプリ一覧</h2>
             {apps.length === 0 ? (
-              <p className="text-gray-600 dark:text-gray-400">アプリがありません</p>
+              <p style={{ color: '#666' }}>アプリがありません</p>
             ) : (
-              <div className="space-y-4">
+              <div style={{ display: 'grid', gap: '16px' }}>
                 {apps.map((app) => (
                   <div
                     key={app.id}
-                    className="bg-white dark:bg-slate-900 rounded-lg p-4 shadow flex justify-between items-start"
+                    style={{
+                      backgroundColor: '#f9f9f9',
+                      borderRadius: '8px',
+                      padding: '16px',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'flex-start'
+                    }}
                   >
-                    <div className="flex-1">
+                    <div style={{ flex: 1 }}>
                       {editingId === app.id ? (
-                        <div className="space-y-2">
+                        <div style={{ display: 'grid', gap: '12px' }}>
                           <input
                             type="text"
                             value={editData.title || app.title}
                             onChange={(e) => setEditData({ ...editData, title: e.target.value })}
-                            className="w-full px-2 py-1 border rounded dark:bg-slate-800 dark:border-slate-700"
+                            style={{ padding: '8px', border: '1px solid #ddd', borderRadius: '4px', width: '100%' }}
                             placeholder="Title"
                           />
                           <textarea
                             value={editData.description || app.description}
                             onChange={(e) => setEditData({ ...editData, description: e.target.value })}
-                            className="w-full px-2 py-1 border rounded dark:bg-slate-800 dark:border-slate-700"
+                            style={{ padding: '8px', border: '1px solid #ddd', borderRadius: '4px', width: '100%', minHeight: '60px' }}
                             placeholder="Description"
-                            rows={3}
                           />
                           <input
                             type="text"
                             value={editData.image_url || app.image_url || ''}
                             onChange={(e) => setEditData({ ...editData, image_url: e.target.value })}
-                            className="w-full px-2 py-1 border rounded dark:bg-slate-800 dark:border-slate-700"
+                            style={{ padding: '8px', border: '1px solid #ddd', borderRadius: '4px', width: '100%' }}
                             placeholder="Image URL"
                           />
-                          <input
-                            type="number"
-                            value={editData.order ?? app.order}
-                            onChange={(e) => setEditData({ ...editData, order: parseInt(e.target.value) })}
-                            className="w-full px-2 py-1 border rounded dark:bg-slate-800 dark:border-slate-700"
-                            placeholder="Order"
-                          />
-                          <div className="flex gap-2">
+                          <div style={{ display: 'flex', gap: '8px' }}>
                             <button
                               onClick={() => handleEditSave(app.id)}
-                              className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600"
+                              style={{ padding: '8px 16px', backgroundColor: '#22c55e', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
                             >
                               保存
                             </button>
                             <button
                               onClick={() => setEditingId(null)}
-                              className="px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600"
+                              style={{ padding: '8px 16px', backgroundColor: '#999', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
                             >
                               キャンセル
                             </button>
@@ -256,26 +300,24 @@ export default function Home() {
                         </div>
                       ) : (
                         <div>
-                          <h2 className="text-2xl font-bold mb-2">{app.title}</h2>
-                          <p className="text-gray-600 dark:text-gray-400 mb-2">{app.description}</p>
-                          {app.image_url && (
-                            <img src={app.image_url} alt={app.title} className="w-full h-40 object-cover rounded mb-2" />
-                          )}
-                          <a href={`https://${app.slug}.accel-dash.com`} className="text-blue-500 hover:underline">{app.slug}.accel-dash.com →</a>
+                          <h3 style={{ fontSize: '20px', fontWeight: 'bold', margin: '0 0 8px 0' }}>{app.title}</h3>
+                          <p style={{ color: '#666', margin: '0 0 8px 0' }}>{app.description}</p>
+                          {app.image_url && <img src={app.image_url} alt={app.title} style={{ width: '100%', height: '160px', objectFit: 'cover', borderRadius: '4px', marginBottom: '8px' }} />}
+                          <a href={`https://${app.slug}.accel-dash.com`} style={{ color: '#279300', textDecoration: 'underline' }}>{app.slug}.accel-dash.com →</a>
                         </div>
                       )}
                     </div>
                     {isAdmin && !editingId && (
-                      <div className="flex gap-2 ml-4">
+                      <div style={{ display: 'flex', gap: '8px', marginLeft: '16px' }}>
                         <button
                           onClick={() => handleEditStart(app)}
-                          className="p-2 text-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900 rounded"
+                          style={{ padding: '8px', backgroundColor: 'transparent', color: '#279300', border: 'none', cursor: 'pointer' }}
                         >
                           <Pencil size={20} />
                         </button>
                         <button
                           onClick={() => handleDelete(app.id)}
-                          className="p-2 text-red-500 hover:bg-red-100 dark:hover:bg-red-900 rounded"
+                          style={{ padding: '8px', backgroundColor: 'transparent', color: '#ef4444', border: 'none', cursor: 'pointer' }}
                         >
                           <Trash2 size={20} />
                         </button>
@@ -290,46 +332,49 @@ export default function Home() {
 
         {tab === 'users' && isAdmin && (
           <div>
-            <h2 className="text-2xl font-bold mb-4">ユーザー管理</h2>
-            <div className="mb-6 bg-white dark:bg-slate-900 rounded-lg p-4 shadow">
-              <div className="flex gap-2">
-                <input
-                  type="email"
-                  value={newUserEmail}
-                  onChange={(e) => setNewUserEmail(e.target.value)}
-                  placeholder="メールアドレス"
-                  className="flex-1 px-3 py-2 border rounded dark:bg-slate-800 dark:border-slate-700"
-                />
-                <button
-                  onClick={handleAddUser}
-                  disabled={userLoading}
-                  className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-400"
-                >
-                  <Plus size={20} className="inline mr-1" />
-                  追加
-                </button>
-              </div>
+            <h2 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '16px' }}>ユーザー管理</h2>
+            <div style={{ backgroundColor: '#f9f9f9', borderRadius: '8px', padding: '16px', marginBottom: '24px', display: 'flex', gap: '8px' }}>
+              <input
+                type="email"
+                value={newUserEmail}
+                onChange={(e) => setNewUserEmail(e.target.value)}
+                placeholder="メールアドレス"
+                style={{ flex: 1, padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+              />
+              <button
+                onClick={handleAddUser}
+                disabled={userLoading}
+                style={{ padding: '8px 16px', backgroundColor: '#279300', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', opacity: userLoading ? 0.6 : 1 }}
+              >
+                <Plus size={20} style={{ display: 'inline', marginRight: '4px' }} />
+                追加
+              </button>
             </div>
 
             {users.length === 0 ? (
-              <p className="text-gray-600 dark:text-gray-400">ユーザーがありません</p>
+              <p style={{ color: '#666' }}>ユーザーがありません</p>
             ) : (
-              <div className="space-y-2">
+              <div style={{ display: 'grid', gap: '8px' }}>
                 {users.map((user) => (
                   <div
                     key={user.id}
-                    className="bg-white dark:bg-slate-900 rounded-lg p-4 shadow flex justify-between items-center"
+                    style={{
+                      backgroundColor: '#f9f9f9',
+                      borderRadius: '8px',
+                      padding: '16px',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center'
+                    }}
                   >
                     <div>
-                      <p className="font-semibold">{user.email}</p>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        作成日：{new Date(user.created_at).toLocaleDateString('ja-JP')}
-                      </p>
+                      <p style={{ fontWeight: '600', margin: 0 }}>{user.email}</p>
+                      <p style={{ fontSize: '12px', color: '#666', margin: '4px 0 0 0' }}>作成日：{new Date(user.created_at).toLocaleDateString('ja-JP')}</p>
                     </div>
                     {user.email !== session?.user?.email && (
                       <button
                         onClick={() => handleDeleteUser(user.id)}
-                        className="p-2 text-red-500 hover:bg-red-100 dark:hover:bg-red-900 rounded"
+                        style={{ padding: '8px', backgroundColor: 'transparent', color: '#ef4444', border: 'none', cursor: 'pointer' }}
                       >
                         <Trash2 size={20} />
                       </button>
@@ -344,3 +389,4 @@ export default function Home() {
     </div>
   )
 }
+ENDFILE
