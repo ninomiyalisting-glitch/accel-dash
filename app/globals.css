@@ -1,7 +1,53 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
+/* ===================================================================
+   Accel Partners デザイントークン
+   ここを変えると全ページ・全コンポーネントに一括反映されます。
+   （Tailwind v4 では tailwind.config.ts ではなく、この @theme が設定元）
+   =================================================================== */
+@theme {
+  /* カラー — グリーン系 */
+  --color-accel-lightest: #e8f5c9;
+  --color-accel-light: #a8e67d;
+  --color-accel-secondary: #6fd433;
+  --color-accel-hover: #3db800;
+  --color-accel-primary: #279300;
+  --color-accel-active: #1f7a00;
+  --color-accel-text: #145200;
+  --color-accel-dark: #0d3800;
+
+  /* 面の色 */
+  --color-surface: #ffffff;
+  --color-surface-muted: #f7faf2;
+  --color-border-soft: #dbe8c8;
+
+  /* フォント — 游ゴシック体 */
+  --font-sans: "Yu Gothic", "游ゴシック体", YuGothic, "Yu Gothic Medium",
+    "Hiragino Sans", "Segoe UI", system-ui, sans-serif;
+
+  /* 文字サイズ（行高はすべて 1.8） */
+  --text-xs: 12px;
+  --text-xs--line-height: 1.8;
+  --text-sm: 14px;
+  --text-sm--line-height: 1.8;
+  --text-base: 16px;
+  --text-base--line-height: 1.8;
+  --text-lg: 18px;
+  --text-lg--line-height: 1.8;
+  --text-xl: 22px;
+  --text-xl--line-height: 1.8;
+  --text-2xl: 28px;
+  --text-2xl--line-height: 1.6;
+  --text-3xl: 32px;
+  --text-3xl--line-height: 1.5;
+
+  /* 入力フォームの最小高さ（大きく使いやすく） */
+  --spacing-control: 48px;
+}
+
+/* ===================================================================
+   ベーススタイル
+   =================================================================== */
 * {
   margin: 0;
   padding: 0;
@@ -9,59 +55,96 @@
 }
 
 html {
-  font-family: 'Yu Gothic', 'Segoe UI', system-ui, sans-serif;
+  font-family: var(--font-sans);
   line-height: 1.8;
+  font-size: 16px;
 }
 
 body {
-  background-color: #ffffff;
-  color: #145200;
-}
-
-body.dark {
-  background-color: #0f172a;
-  color: #e2e8f0;
-}
-
-/* ボタン */
-button {
-  padding: 12px 16px;
-  border-radius: 8px;
-  font-weight: 600;
-  font-size: 16px;
-  border: none;
-  cursor: pointer;
-  transition: all 0.2s;
-  min-height: 44px;
-}
-
-button.primary {
-  background-color: #279300;
-  color: white;
-}
-
-button.primary:hover {
-  background-color: #3DB800;
-}
-
-button.primary:active {
-  background-color: #1F7A00;
-}
-
-/* 入力フォーム */
-input, textarea, select {
-  width: 100%;
-  padding: 12px 16px;
-  border: 2px solid #145200;
-  border-radius: 8px;
-  font-size: 16px;
-  font-family: inherit;
+  background-color: var(--color-surface);
+  color: var(--color-accel-text);
+  font-size: var(--text-base);
   line-height: 1.8;
-  min-height: 44px;
 }
 
-input:focus, textarea:focus, select:focus {
+h1 {
+  font-size: var(--text-3xl);
+  font-weight: 700;
+  color: var(--color-accel-dark);
+}
+
+h2 {
+  font-size: var(--text-xl);
+  font-weight: 700;
+  color: var(--color-accel-text);
+}
+
+h3 {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--color-accel-primary);
+}
+
+a {
+  color: var(--color-accel-primary);
+}
+
+a:hover {
+  color: var(--color-accel-hover);
+}
+
+/* 入力フォーム — 大きく、押しやすく */
+input,
+textarea,
+select {
+  width: 100%;
+  min-height: var(--spacing-control);
+  padding: 12px 16px;
+  border: 2px solid var(--color-border-soft);
+  border-radius: 8px;
+  background-color: var(--color-surface);
+  color: var(--color-accel-text);
+  font-family: inherit;
+  font-size: var(--text-base);
+  line-height: 1.8;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+input:hover,
+textarea:hover,
+select:hover {
+  border-color: var(--color-accel-secondary);
+}
+
+input:focus,
+textarea:focus,
+select:focus {
   outline: none;
-  border-color: #279300;
-  box-shadow: 0 0 0 3px #A8E67D;
+  border-color: var(--color-accel-primary);
+  box-shadow: 0 0 0 3px var(--color-accel-light);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #9bb086;
+}
+
+textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+button {
+  min-height: var(--spacing-control);
+  font-family: inherit;
+  font-size: var(--text-base);
+  font-weight: 600;
+  line-height: 1.8;
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
