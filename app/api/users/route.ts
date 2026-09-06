@@ -21,6 +21,7 @@ export async function GET(req: NextRequest) {
       email: u.email ?? '',
       created_at: u.created_at,
       last_sign_in_at: u.last_sign_in_at ?? null,
+      is_admin: Boolean(u.email?.endsWith(ADMIN_DOMAIN)),
       confirmed: Boolean(u.email_confirmed_at || u.confirmed_at),
       is_me: u.id === me.id
     }))
@@ -38,8 +39,8 @@ export async function POST(req: NextRequest) {
   const address = String(email || '').trim().toLowerCase()
 
   if (!address) return fail('メールアドレスを入力してください')
-  if (!address.endsWith(ADMIN_DOMAIN)) {
-    return fail(`${ADMIN_DOMAIN} のメールアドレスのみ招待できます`)
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address)) {
+    return fail('メールアドレスの形式が正しくありません')
   }
 
   const { error } = await supabaseAdmin.auth.admin.inviteUserByEmail(address, {

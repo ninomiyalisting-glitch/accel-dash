@@ -22,6 +22,7 @@ interface User {
   created_at: string
   last_sign_in_at: string | null
   confirmed: boolean
+  is_admin: boolean
   is_me: boolean
 }
 
@@ -556,7 +557,7 @@ export default function Home() {
                   value={newUserEmail}
                   onChange={(e) => setNewUserEmail(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleInvite()}
-                  placeholder="name@accel-partners.co.jp"
+                  placeholder="name@example.com"
                   className="min-w-[240px] flex-1"
                 />
                 <button
@@ -570,6 +571,9 @@ export default function Home() {
               </div>
               <p className="mt-3 text-sm text-black/60">
                 招待メールのリンクからパスワードを設定してもらいます。
+                <br />
+                @accel-partners.co.jp は管理者（このタブとアプリ編集が使えます）。
+                それ以外のアドレスは一般ユーザーで、アプリ一覧の閲覧のみです。
               </p>
             </div>
 
@@ -591,6 +595,15 @@ export default function Home() {
                               自分
                             </span>
                           )}
+                          <span
+                            className={
+                              user.is_admin
+                                ? 'rounded bg-accel-lightest px-2 py-0.5 text-xs font-normal'
+                                : 'rounded bg-surface-muted px-2 py-0.5 text-xs font-normal text-black/60'
+                            }
+                          >
+                            {user.is_admin ? '管理者' : '一般'}
+                          </span>
                           {!user.confirmed && (
                             <span className="rounded bg-surface-muted px-2 py-0.5 text-xs font-normal text-black/60">
                               招待中
