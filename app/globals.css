@@ -14,6 +14,7 @@
   --color-accel-primary: #279300;
   --color-accel-active: #1f7a00;
   --color-accel-text: #145200;
+  --color-ink: #000000;
   --color-accel-dark: #0d3800;
 
   /* 面の色 */
@@ -63,7 +64,7 @@
 
   body {
     background-color: var(--color-surface);
-    color: var(--color-accel-text);
+    color: var(--color-ink);
     font-size: var(--text-base);
     line-height: 1.8;
   }
@@ -71,23 +72,23 @@
   h1 {
     font-size: var(--text-3xl);
     font-weight: 700;
-    color: var(--color-accel-dark);
+    color: var(--color-ink);
   }
 
   h2 {
     font-size: var(--text-xl);
     font-weight: 700;
-    color: var(--color-accel-text);
+    color: var(--color-ink);
   }
 
   h3 {
     font-size: var(--text-lg);
     font-weight: 700;
-    color: var(--color-accel-primary);
+    color: var(--color-ink);
   }
 
   a {
-    color: var(--color-accel-primary);
+    color: var(--color-ink);
   }
 
   a:hover {
@@ -104,7 +105,7 @@
     border: 2px solid var(--color-border-soft);
     border-radius: 8px;
     background-color: var(--color-surface);
-    color: var(--color-accel-text);
+    color: var(--color-ink);
     font-family: inherit;
     font-size: var(--text-base);
     line-height: 1.8;
@@ -127,7 +128,7 @@
 
   input::placeholder,
   textarea::placeholder {
-    color: #9bb086;
+    color: #8a8f86;
   }
 
   textarea {

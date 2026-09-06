@@ -38,14 +38,14 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-accel-lightest flex items-center justify-center p-6">
       <div className="w-full max-w-md rounded-2xl border border-border-soft bg-surface p-10 shadow-sm">
-        <div className="mb-8 flex flex-col items-center gap-3">
-          <img src="/favicon.ico" alt="Accel Partners" className="h-12 w-12" />
-          <h1 className="text-2xl font-bold text-accel-dark">アクセルダッシュ</h1>
+        <div className="mb-9 flex flex-col items-center">
+          <img src="/logo.png" alt="ACCEL DASH" className="h-10 w-auto" />
+          <h1 className="sr-only">ACCEL DASH</h1>
         </div>
 
         <form onSubmit={handleLogin} className="flex flex-col gap-6">
           <div className="flex flex-col gap-2">
-            <label htmlFor="email" className="text-sm font-semibold text-accel-text">
+            <label htmlFor="email" className="text-sm font-semibold text-black">
               メールアドレス
             </label>
             <div className="relative">
@@ -66,7 +66,7 @@ export default function LoginPage() {
           </div>
 
           <div className="flex flex-col gap-2">
-            <label htmlFor="password" className="text-sm font-semibold text-accel-text">
+            <label htmlFor="password" className="text-sm font-semibold text-black">
               パスワード
             </label>
             <div className="relative">
@@ -99,7 +99,7 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <p className="mt-8 text-center text-sm text-accel-text/70">
+        <p className="mt-8 text-center text-sm text-black/70">
           従業員のみアクセス可能
         </p>
       </div>
