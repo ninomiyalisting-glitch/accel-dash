@@ -36,53 +36,70 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-slate-900 rounded-lg shadow-xl p-8 w-full max-w-md">
-        <h1 className="text-3xl font-bold text-center mb-8">アクセルダッシュ</h1>
+    <div className="min-h-screen bg-accel-lightest flex items-center justify-center p-6">
+      <div className="w-full max-w-md rounded-2xl border border-border-soft bg-surface p-10 shadow-sm">
+        <div className="mb-8 flex flex-col items-center gap-3">
+          <img src="/favicon.ico" alt="Accel Partners" className="h-12 w-12" />
+          <h1 className="text-2xl font-bold text-accel-dark">アクセルダッシュ</h1>
+        </div>
 
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium mb-2">メールアドレス</label>
+        <form onSubmit={handleLogin} className="flex flex-col gap-6">
+          <div className="flex flex-col gap-2">
+            <label htmlFor="email" className="text-sm font-semibold text-accel-text">
+              メールアドレス
+            </label>
             <div className="relative">
-              <Mail className="absolute left-3 top-3 text-gray-400" size={20} />
+              <Mail
+                className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-accel-secondary"
+                size={20}
+              />
               <input
+                id="email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="your@accel-partners.co.jp"
                 required
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-800 dark:border-slate-700"
+                className="pl-12"
               />
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-2">パスワード</label>
+          <div className="flex flex-col gap-2">
+            <label htmlFor="password" className="text-sm font-semibold text-accel-text">
+              パスワード
+            </label>
             <div className="relative">
-              <Lock className="absolute left-3 top-3 text-gray-400" size={20} />
+              <Lock
+                className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-accel-secondary"
+                size={20}
+              />
               <input
+                id="password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 required
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-800 dark:border-slate-700"
+                className="pl-12"
               />
             </div>
           </div>
 
-          {error && <div className="text-red-500 text-sm">{error}</div>}
+          {error && (
+            <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>
+          )}
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-400 font-semibold transition"
+            className="w-full rounded-lg bg-accel-primary px-4 py-3 text-white hover:bg-accel-hover active:bg-accel-active"
           >
-            {loading ? 'ログイン中...' : 'ログイン'}
+            {loading ? 'ログイン中…' : 'ログイン'}
           </button>
         </form>
 
-        <p className="text-center text-sm text-gray-600 dark:text-gray-400 mt-6">
+        <p className="mt-8 text-center text-sm text-accel-text/70">
           従業員のみアクセス可能
         </p>
       </div>

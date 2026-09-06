@@ -45,106 +45,108 @@
   --spacing-control: 48px;
 }
 
-/* ===================================================================
-   ベーススタイル
-   =================================================================== */
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
+@layer base {
+  /* ===================================================================
+     ベーススタイル
+     =================================================================== */
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
 
-html {
-  font-family: var(--font-sans);
-  line-height: 1.8;
-  font-size: 16px;
-}
+  html {
+    font-family: var(--font-sans);
+    line-height: 1.8;
+    font-size: 16px;
+  }
 
-body {
-  background-color: var(--color-surface);
-  color: var(--color-accel-text);
-  font-size: var(--text-base);
-  line-height: 1.8;
-}
+  body {
+    background-color: var(--color-surface);
+    color: var(--color-accel-text);
+    font-size: var(--text-base);
+    line-height: 1.8;
+  }
 
-h1 {
-  font-size: var(--text-3xl);
-  font-weight: 700;
-  color: var(--color-accel-dark);
-}
+  h1 {
+    font-size: var(--text-3xl);
+    font-weight: 700;
+    color: var(--color-accel-dark);
+  }
 
-h2 {
-  font-size: var(--text-xl);
-  font-weight: 700;
-  color: var(--color-accel-text);
-}
+  h2 {
+    font-size: var(--text-xl);
+    font-weight: 700;
+    color: var(--color-accel-text);
+  }
 
-h3 {
-  font-size: var(--text-lg);
-  font-weight: 700;
-  color: var(--color-accel-primary);
-}
+  h3 {
+    font-size: var(--text-lg);
+    font-weight: 700;
+    color: var(--color-accel-primary);
+  }
 
-a {
-  color: var(--color-accel-primary);
-}
+  a {
+    color: var(--color-accel-primary);
+  }
 
-a:hover {
-  color: var(--color-accel-hover);
-}
+  a:hover {
+    color: var(--color-accel-hover);
+  }
 
-/* 入力フォーム — 大きく、押しやすく */
-input,
-textarea,
-select {
-  width: 100%;
-  min-height: var(--spacing-control);
-  padding: 12px 16px;
-  border: 2px solid var(--color-border-soft);
-  border-radius: 8px;
-  background-color: var(--color-surface);
-  color: var(--color-accel-text);
-  font-family: inherit;
-  font-size: var(--text-base);
-  line-height: 1.8;
-  transition: border-color 0.15s, box-shadow 0.15s;
-}
+  /* 入力フォーム — 大きく、押しやすく */
+  input,
+  textarea,
+  select {
+    width: 100%;
+    min-height: var(--spacing-control);
+    padding: 12px 16px;
+    border: 2px solid var(--color-border-soft);
+    border-radius: 8px;
+    background-color: var(--color-surface);
+    color: var(--color-accel-text);
+    font-family: inherit;
+    font-size: var(--text-base);
+    line-height: 1.8;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
 
-input:hover,
-textarea:hover,
-select:hover {
-  border-color: var(--color-accel-secondary);
-}
+  input:hover,
+  textarea:hover,
+  select:hover {
+    border-color: var(--color-accel-secondary);
+  }
 
-input:focus,
-textarea:focus,
-select:focus {
-  outline: none;
-  border-color: var(--color-accel-primary);
-  box-shadow: 0 0 0 3px var(--color-accel-light);
-}
+  input:focus,
+  textarea:focus,
+  select:focus {
+    outline: none;
+    border-color: var(--color-accel-primary);
+    box-shadow: 0 0 0 3px var(--color-accel-light);
+  }
 
-input::placeholder,
-textarea::placeholder {
-  color: #9bb086;
-}
+  input::placeholder,
+  textarea::placeholder {
+    color: #9bb086;
+  }
 
-textarea {
-  min-height: 120px;
-  resize: vertical;
-}
+  textarea {
+    min-height: 120px;
+    resize: vertical;
+  }
 
-button {
-  min-height: var(--spacing-control);
-  font-family: inherit;
-  font-size: var(--text-base);
-  font-weight: 600;
-  line-height: 1.8;
-  cursor: pointer;
-  transition: background-color 0.15s, color 0.15s, border-color 0.15s;
-}
+  button {
+    min-height: var(--spacing-control);
+    font-family: inherit;
+    font-size: var(--text-base);
+    font-weight: 600;
+    line-height: 1.8;
+    cursor: pointer;
+    transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+  }
 
-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
+  button:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
 }

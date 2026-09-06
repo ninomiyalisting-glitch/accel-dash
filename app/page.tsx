@@ -49,7 +49,7 @@ export default function Home() {
     setSession(session)
     const email = session.user.email || ''
     setIsAdmin(email.endsWith('@accel-partners.co.jp'))
-    
+
     await fetchApps()
     await fetchUsers()
     setLoading(false)
@@ -60,7 +60,7 @@ export default function Home() {
       .from('apps')
       .select('*')
       .order('order', { ascending: true })
-    
+
     if (!error && data) {
       setApps(data)
     }
@@ -71,22 +71,18 @@ export default function Home() {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) return
 
-      const token = session.access_token
       const res = await fetch('/api/users', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: { Authorization: `Bearer ${session.access_token}` }
       })
       if (res.ok) {
-        const data = await res.json()
-        setUsers(data)
+        setUsers(await res.json())
       }
     } catch (err) {
       console.error('Error fetching users:', err)
     }
   }
 
-  async function handleEditStart(app: App) {
+  function handleEditStart(app: App) {
     setEditingId(app.id)
     setEditData(app)
   }
@@ -96,7 +92,7 @@ export default function Home() {
       .from('apps')
       .update(editData)
       .eq('id', appId)
-    
+
     if (!error) {
       await fetchApps()
       setEditingId(null)
@@ -109,7 +105,7 @@ export default function Home() {
       .from('apps')
       .delete()
       .eq('id', appId)
-    
+
     if (!error) {
       await fetchApps()
     }
@@ -117,22 +113,21 @@ export default function Home() {
 
   async function handleAddUser() {
     if (!newUserEmail.trim()) return
-    
+
     setUserLoading(true)
     try {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) return
 
-      const token = session.access_token
       const res = await fetch('/api/users', {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          Authorization: `Bearer ${session.access_token}`
         },
         body: JSON.stringify({ email: newUserEmail })
       })
-      
+
       if (res.ok) {
         setNewUserEmail('')
         await fetchUsers()
@@ -147,14 +142,11 @@ export default function Home() {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) return
 
-      const token = session.access_token
       const res = await fetch(`/api/users?id=${userId}`, {
         method: 'DELETE',
-        headers: { 
-          'Authorization': `Bearer ${token}`
-        }
+        headers: { Authorization: `Bearer ${session.access_token}` }
       })
-      
+
       if (res.ok) {
         await fetchUsers()
       }
@@ -169,70 +161,58 @@ export default function Home() {
   }
 
   if (loading) {
-    return <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>読み込み中...</div>
+    return (
+      <div className="flex min-h-screen items-center justify-center text-accel-text">
+        読み込み中…
+      </div>
+    )
   }
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#ffffff', color: '#145200', padding: '32px' }}>
-      <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <img src="/favicon.ico" alt="Accel Partners" style={{ width: '40px', height: '40px' }} />
-            <h1 style={{ fontSize: '32px', fontWeight: 'bold', margin: 0 }}>アクセルダッシュ</h1>
+    <div className="min-h-screen bg-surface-muted">
+      <header className="border-b border-border-soft bg-surface">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4 px-6 py-5">
+          <div className="flex items-center gap-3">
+            <img src="/favicon.ico" alt="Accel Partners" className="h-9 w-9" />
+            <div>
+              <h1 className="text-2xl font-bold text-accel-dark">アクセルダッシュ</h1>
+              {session?.user?.email && (
+                <p className="text-sm text-accel-text/70">
+                  ログイン中：{session.user.email}
+                </p>
+              )}
+            </div>
           </div>
           <button
             onClick={handleLogout}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '12px 16px',
-              backgroundColor: '#ef4444',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              fontSize: '16px'
-            }}
+            className="flex items-center gap-2 rounded-lg border-2 border-border-soft bg-surface px-4 py-2 text-accel-text hover:border-accel-secondary"
           >
-            <LogOut size={20} />
+            <LogOut size={18} />
             ログアウト
           </button>
         </div>
+      </header>
 
-        {session?.user?.email && (
-          <p style={{ fontSize: '14px', color: '#666', marginBottom: '24px' }}>
-            ログイン中：{session.user.email}
-          </p>
-        )}
-
+      <main className="mx-auto max-w-5xl px-6 py-8">
         {isAdmin && (
-          <div style={{ display: 'flex', gap: '16px', marginBottom: '24px', borderBottom: '1px solid #ddd', paddingBottom: '16px' }}>
+          <div className="mb-8 flex gap-2 border-b border-border-soft">
             <button
               onClick={() => setTab('apps')}
-              style={{
-                padding: '12px 16px',
-                fontWeight: '600',
-                backgroundColor: 'transparent',
-                border: 'none',
-                borderBottom: tab === 'apps' ? '2px solid #279300' : 'none',
-                color: tab === 'apps' ? '#279300' : '#666',
-                cursor: 'pointer'
-              }}
+              className={
+                tab === 'apps'
+                  ? 'border-b-2 border-accel-primary px-5 py-3 text-accel-primary'
+                  : 'border-b-2 border-transparent px-5 py-3 text-accel-text/60 hover:text-accel-text'
+              }
             >
               アプリ
             </button>
             <button
               onClick={() => setTab('users')}
-              style={{
-                padding: '12px 16px',
-                fontWeight: '600',
-                backgroundColor: 'transparent',
-                border: 'none',
-                borderBottom: tab === 'users' ? '2px solid #279300' : 'none',
-                color: tab === 'users' ? '#279300' : '#666',
-                cursor: 'pointer'
-              }}
+              className={
+                tab === 'users'
+                  ? 'border-b-2 border-accel-primary px-5 py-3 text-accel-primary'
+                  : 'border-b-2 border-transparent px-5 py-3 text-accel-text/60 hover:text-accel-text'
+              }
             >
               ユーザー
             </button>
@@ -240,151 +220,173 @@ export default function Home() {
         )}
 
         {tab === 'apps' && (
-          <div>
-            <h2 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '16px' }}>アプリ一覧</h2>
+          <section>
+            <h2 className="mb-5">アプリ一覧</h2>
+
             {apps.length === 0 ? (
-              <p style={{ color: '#666' }}>アプリがありません</p>
+              <p className="text-accel-text/70">アプリがありません</p>
             ) : (
-              <div style={{ display: 'grid', gap: '16px' }}>
+              <div className="grid gap-5 sm:grid-cols-2">
                 {apps.map((app) => (
-                  <div
+                  <article
                     key={app.id}
-                    style={{
-                      backgroundColor: '#f9f9f9',
-                      borderRadius: '8px',
-                      padding: '16px',
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'flex-start'
-                    }}
+                    className="overflow-hidden rounded-2xl border border-border-soft bg-surface"
                   >
-                    <div style={{ flex: 1 }}>
-                      {editingId === app.id ? (
-                        <div style={{ display: 'grid', gap: '12px' }}>
+                    {editingId === app.id ? (
+                      <div className="flex flex-col gap-4 p-6">
+                        <div className="flex flex-col gap-2">
+                          <label className="text-sm font-semibold">アプリ名</label>
                           <input
                             type="text"
-                            value={editData.title || app.title}
+                            value={editData.title ?? app.title}
                             onChange={(e) => setEditData({ ...editData, title: e.target.value })}
-                            style={{ padding: '8px', border: '1px solid #ddd', borderRadius: '4px', width: '100%' }}
-                            placeholder="Title"
                           />
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          <label className="text-sm font-semibold">説明</label>
                           <textarea
-                            value={editData.description || app.description}
+                            value={editData.description ?? app.description}
                             onChange={(e) => setEditData({ ...editData, description: e.target.value })}
-                            style={{ padding: '8px', border: '1px solid #ddd', borderRadius: '4px', width: '100%', minHeight: '60px' }}
-                            placeholder="Description"
                           />
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          <label className="text-sm font-semibold">画像 URL</label>
                           <input
                             type="text"
-                            value={editData.image_url || app.image_url || ''}
+                            value={editData.image_url ?? app.image_url ?? ''}
                             onChange={(e) => setEditData({ ...editData, image_url: e.target.value })}
-                            style={{ padding: '8px', border: '1px solid #ddd', borderRadius: '4px', width: '100%' }}
-                            placeholder="Image URL"
                           />
-                          <div style={{ display: 'flex', gap: '8px' }}>
-                            <button
-                              onClick={() => handleEditSave(app.id)}
-                              style={{ padding: '8px 16px', backgroundColor: '#22c55e', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-                            >
-                              保存
-                            </button>
-                            <button
-                              onClick={() => setEditingId(null)}
-                              style={{ padding: '8px 16px', backgroundColor: '#999', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-                            >
-                              キャンセル
-                            </button>
-                          </div>
                         </div>
-                      ) : (
-                        <div>
-                          <h3 style={{ fontSize: '20px', fontWeight: 'bold', margin: '0 0 8px 0' }}>{app.title}</h3>
-                          <p style={{ color: '#666', margin: '0 0 8px 0' }}>{app.description}</p>
-                          {app.image_url && <img src={app.image_url} alt={app.title} style={{ width: '100%', height: '160px', objectFit: 'cover', borderRadius: '4px', marginBottom: '8px' }} />}
-                          <a href={`https://${app.slug}.accel-dash.com`} style={{ color: '#279300', textDecoration: 'underline' }}>{app.slug}.accel-dash.com →</a>
+                        <div className="flex flex-col gap-2">
+                          <label className="text-sm font-semibold">表示順</label>
+                          <input
+                            type="number"
+                            value={editData.order ?? app.order}
+                            onChange={(e) => setEditData({ ...editData, order: Number(e.target.value) })}
+                          />
                         </div>
-                      )}
-                    </div>
-                    {isAdmin && !editingId && (
-                      <div style={{ display: 'flex', gap: '8px', marginLeft: '16px' }}>
-                        <button
-                          onClick={() => handleEditStart(app)}
-                          style={{ padding: '8px', backgroundColor: 'transparent', color: '#279300', border: 'none', cursor: 'pointer' }}
-                        >
-                          <Pencil size={20} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(app.id)}
-                          style={{ padding: '8px', backgroundColor: 'transparent', color: '#ef4444', border: 'none', cursor: 'pointer' }}
-                        >
-                          <Trash2 size={20} />
-                        </button>
+                        <div className="flex gap-3">
+                          <button
+                            onClick={() => handleEditSave(app.id)}
+                            className="rounded-lg bg-accel-primary px-5 py-2 text-white hover:bg-accel-hover active:bg-accel-active"
+                          >
+                            保存
+                          </button>
+                          <button
+                            onClick={() => setEditingId(null)}
+                            className="rounded-lg border-2 border-border-soft px-5 py-2 text-accel-text hover:border-accel-secondary"
+                          >
+                            キャンセル
+                          </button>
+                        </div>
                       </div>
+                    ) : (
+                      <>
+                        {app.image_url && (
+                          <img
+                            src={app.image_url}
+                            alt=""
+                            className="h-40 w-full object-cover"
+                          />
+                        )}
+                        <div className="flex items-start justify-between gap-4 p-6">
+                          <div className="min-w-0">
+                            <h3 className="mb-1">{app.title}</h3>
+                            <p className="mb-3 text-sm text-accel-text/80">{app.description}</p>
+                            <a
+                              href={`https://${app.slug}.accel-dash.com`}
+                              className="text-sm break-all underline"
+                            >
+                              {app.slug}.accel-dash.com →
+                            </a>
+                          </div>
+                          {isAdmin && (
+                            <div className="flex shrink-0 gap-1">
+                              <button
+                                onClick={() => handleEditStart(app)}
+                                aria-label="編集"
+                                className="rounded-lg p-2 text-accel-primary hover:bg-accel-lightest"
+                              >
+                                <Pencil size={18} />
+                              </button>
+                              <button
+                                onClick={() => handleDelete(app.id)}
+                                aria-label="削除"
+                                className="rounded-lg p-2 text-red-600 hover:bg-red-50"
+                              >
+                                <Trash2 size={18} />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </>
                     )}
-                  </div>
+                  </article>
                 ))}
               </div>
             )}
-          </div>
+          </section>
         )}
 
         {tab === 'users' && isAdmin && (
-          <div>
-            <h2 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '16px' }}>ユーザー管理</h2>
-            <div style={{ backgroundColor: '#f9f9f9', borderRadius: '8px', padding: '16px', marginBottom: '24px', display: 'flex', gap: '8px' }}>
-              <input
-                type="email"
-                value={newUserEmail}
-                onChange={(e) => setNewUserEmail(e.target.value)}
-                placeholder="メールアドレス"
-                style={{ flex: 1, padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
-              />
-              <button
-                onClick={handleAddUser}
-                disabled={userLoading}
-                style={{ padding: '8px 16px', backgroundColor: '#279300', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', opacity: userLoading ? 0.6 : 1 }}
-              >
-                <Plus size={20} style={{ display: 'inline', marginRight: '4px' }} />
-                追加
-              </button>
+          <section>
+            <h2 className="mb-5">ユーザー管理</h2>
+
+            <div className="mb-6 rounded-2xl border border-border-soft bg-surface p-6">
+              <label htmlFor="newUser" className="mb-2 block text-sm font-semibold">
+                招待するメールアドレス
+              </label>
+              <div className="flex flex-wrap gap-3">
+                <input
+                  id="newUser"
+                  type="email"
+                  value={newUserEmail}
+                  onChange={(e) => setNewUserEmail(e.target.value)}
+                  placeholder="name@accel-partners.co.jp"
+                  className="min-w-[240px] flex-1"
+                />
+                <button
+                  onClick={handleAddUser}
+                  disabled={userLoading}
+                  className="flex items-center gap-2 rounded-lg bg-accel-primary px-6 py-3 text-white hover:bg-accel-hover active:bg-accel-active"
+                >
+                  <Plus size={18} />
+                  {userLoading ? '送信中…' : '招待'}
+                </button>
+              </div>
             </div>
 
             {users.length === 0 ? (
-              <p style={{ color: '#666' }}>ユーザーがありません</p>
+              <p className="text-accel-text/70">ユーザーがありません</p>
             ) : (
-              <div style={{ display: 'grid', gap: '8px' }}>
+              <ul className="flex flex-col gap-3">
                 {users.map((user) => (
-                  <div
+                  <li
                     key={user.id}
-                    style={{
-                      backgroundColor: '#f9f9f9',
-                      borderRadius: '8px',
-                      padding: '16px',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center'
-                    }}
+                    className="flex items-center justify-between gap-4 rounded-xl border border-border-soft bg-surface px-6 py-4"
                   >
-                    <div>
-                      <p style={{ fontWeight: '600', margin: 0 }}>{user.email}</p>
-                      <p style={{ fontSize: '12px', color: '#666', margin: '4px 0 0 0' }}>作成日：{new Date(user.created_at).toLocaleDateString('ja-JP')}</p>
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold">{user.email}</p>
+                      <p className="text-sm text-accel-text/70">
+                        登録日：{new Date(user.created_at).toLocaleDateString('ja-JP')}
+                      </p>
                     </div>
                     {user.email !== session?.user?.email && (
                       <button
                         onClick={() => handleDeleteUser(user.id)}
-                        style={{ padding: '8px', backgroundColor: 'transparent', color: '#ef4444', border: 'none', cursor: 'pointer' }}
+                        aria-label="削除"
+                        className="shrink-0 rounded-lg p-2 text-red-600 hover:bg-red-50"
                       >
-                        <Trash2 size={20} />
+                        <Trash2 size={18} />
                       </button>
                     )}
-                  </div>
+                  </li>
                 ))}
-              </div>
+              </ul>
             )}
-          </div>
+          </section>
         )}
-      </div>
+      </main>
     </div>
   )
 }
