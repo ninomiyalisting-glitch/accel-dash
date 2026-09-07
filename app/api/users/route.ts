@@ -48,8 +48,22 @@ export async function POST(req: NextRequest) {
   })
 
   if (error) {
-    const already = /already|registered|exists/i.test(error.message)
-    return fail(already ? 'このメールアドレスは登録済みです' : error.message, already ? 409 : 500)
+    const message = error.message || ''
+
+    if (/already|registered|exists/i.test(message)) {
+      return fail('このメールアドレスは登録済みです', 409)
+    }
+    if (/rate limit/i.test(message)) {
+      return fail(
+        'メール送信の時間あたり上限に達しました。しばらく待つと再送できます。' +
+          '続けて招待するには、Supabase に独自の SMTP（Resend など）を設定してください。',
+        429
+      )
+    }
+    if (/invalid|format/i.test(message)) {
+      return fail('メールアドレスを受け付けられませんでした：' + message, 400)
+    }
+    return fail(message || '招待に失敗しました', 500)
   }
 
   return NextResponse.json({ email: address, message: '招待メールを送信しました' }, { status: 201 })
