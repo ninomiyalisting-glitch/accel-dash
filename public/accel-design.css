@@ -1,0 +1,135 @@
+/* =====================================================================
+   アクセルダッシュ 共通デザイン
+   ---------------------------------------------------------------------
+   このファイル 1 つを直すと、読み込んでいる社内アプリすべてに反映されます。
+   使い方: 各アプリの </head> の直前に次の 1 行を置くだけ。
+     <link rel="stylesheet" href="https://accel-dash.com/accel-design.css">
+   （必ずアプリ自身の <style> より後ろに置いてください）
+   ===================================================================== */
+
+:root {
+  /* ブランドカラー */
+  --accel-lightest: #e8f5c9;
+  --accel-light: #a8e67d;
+  --accel-secondary: #6fd433;
+  --accel-hover: #3db800;
+  --accel-primary: #279300;
+  --accel-active: #1f7a00;
+  --accel-deep: #145200;
+  --accel-dark: #0d3800;
+
+  /* 面と文字 */
+  --accel-ink: #000000;
+  --accel-surface: #ffffff;
+  --accel-surface-muted: #f7faf2;
+  --accel-border: #dbe8c8;
+
+  /* タイポグラフィ */
+  --accel-font: "Yu Gothic", "游ゴシック体", YuGothic, "Yu Gothic Medium",
+    "Hiragino Sans", "Segoe UI", system-ui, sans-serif;
+  --accel-line-height: 1.8;
+
+  /* 入力フォームは大きく */
+  --accel-control-height: 48px;
+}
+
+/* 既存アプリが使っている汎用トークンにも同じ値を流し込む。
+   ダークモード指定時は触らない（各アプリの dark 定義を優先）。 */
+:root:not([data-theme="dark"]) {
+  --page: var(--accel-surface-muted);
+  --surface-1: var(--accel-surface);
+  --surface-2: var(--accel-surface);
+  --text-primary: var(--accel-ink);
+  --text-secondary: #44483f;
+  --text-muted: #7a8074;
+  --gridline: var(--accel-border);
+  --border: var(--accel-border);
+}
+
+html,
+body {
+  font-family: var(--accel-font);
+  line-height: var(--accel-line-height);
+}
+
+body {
+  color: var(--accel-ink);
+  font-size: 16px;
+}
+
+h1, h2, h3, h4 {
+  color: var(--accel-ink);
+}
+
+a {
+  color: var(--accel-ink);
+}
+
+a:hover {
+  color: var(--accel-hover);
+}
+
+/* 入力フォーム — 小さいと使いづらいので最低 48px */
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]),
+textarea,
+select {
+  min-height: var(--accel-control-height);
+  padding: 12px 16px;
+  border: 2px solid var(--accel-border);
+  border-radius: 8px;
+  background: var(--accel-surface);
+  color: var(--accel-ink);
+  font-family: inherit;
+  font-size: 16px;
+  line-height: var(--accel-line-height);
+}
+
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):hover,
+textarea:hover,
+select:hover {
+  border-color: var(--accel-secondary);
+}
+
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: var(--accel-primary);
+  box-shadow: 0 0 0 3px var(--accel-light);
+}
+
+/* ボタン — 主要操作はブランドグリーン */
+button,
+.btn {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.btn-primary,
+button.primary,
+button[type="submit"].btn-primary {
+  min-height: var(--accel-control-height);
+  padding: 12px 24px;
+  border: none;
+  border-radius: 8px;
+  background: var(--accel-primary);
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.btn-primary:hover,
+button.primary:hover {
+  background: var(--accel-hover);
+}
+
+.btn-primary:active,
+button.primary:active {
+  background: var(--accel-active);
+}
+
+.btn-primary:disabled,
+button.primary:disabled {
+  background: #b7c4ab;
+  cursor: not-allowed;
+}

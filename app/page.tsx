@@ -44,6 +44,9 @@ export default function Home() {
   const [editData, setEditData] = useState<Partial<App>>({})
   const [saving, setSaving] = useState(false)
   const [confirmingApp, setConfirmingApp] = useState<string | null>(null)
+  const [showNewApp, setShowNewApp] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [newApp, setNewApp] = useState({ slug: '', title: '', description: '', order: 0 })
 
   const [uploading, setUploading] = useState(false)
   const [stockOpen, setStockOpen] = useState(false)
@@ -152,6 +155,36 @@ export default function Home() {
     await fetchApps()
     handleEditCancel()
     setNotice({ kind: 'ok', text: '保存しました' })
+  }
+
+  async function handleCreateApp() {
+    if (!newApp.slug.trim() || !newApp.title.trim()) {
+      setNotice({ kind: 'ng', text: 'サブドメインとアプリ名は必須です' })
+      return
+    }
+
+    setCreating(true)
+    const res = await fetch('/api/apps', {
+      method: 'POST',
+      headers: await authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({
+        slug: newApp.slug.trim().toLowerCase(),
+        title: newApp.title.trim(),
+        description: newApp.description.trim(),
+        order: Number(newApp.order) || 0
+      })
+    })
+    setCreating(false)
+
+    if (!res.ok) {
+      setNotice({ kind: 'ng', text: await readError(res, 'アプリの追加に失敗しました') })
+      return
+    }
+
+    setNewApp({ slug: '', title: '', description: '', order: 0 })
+    setShowNewApp(false)
+    await fetchApps()
+    setNotice({ kind: 'ok', text: 'アプリを追加しました' })
   }
 
   async function handleDeleteApp(appId: string) {
@@ -321,7 +354,81 @@ export default function Home() {
 
         {tab === 'apps' && (
           <section>
-            <h2 className="mb-5">アプリ一覧</h2>
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+              <h2>アプリ一覧</h2>
+              {isAdmin && (
+                <button
+                  onClick={() => setShowNewApp((v) => !v)}
+                  className="flex items-center gap-2 rounded-lg border-2 border-border-soft bg-surface px-4 py-2 text-black hover:border-accel-secondary"
+                >
+                  <Plus size={18} />
+                  アプリを追加
+                </button>
+              )}
+            </div>
+
+            {showNewApp && isAdmin && (
+              <div className="mb-6 flex flex-col gap-4 rounded-2xl border border-border-soft bg-surface p-6">
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm font-semibold text-black">サブドメイン</label>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input
+                      type="text"
+                      value={newApp.slug}
+                      onChange={(e) => setNewApp({ ...newApp, slug: e.target.value })}
+                      placeholder="magnet"
+                      className="min-w-[160px] flex-1"
+                    />
+                    <span className="text-sm text-black/60">.accel-dash.com</span>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm font-semibold text-black">アプリ名</label>
+                  <input
+                    type="text"
+                    value={newApp.title}
+                    onChange={(e) => setNewApp({ ...newApp, title: e.target.value })}
+                    placeholder="採用広報ダッシュボード"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm font-semibold text-black">説明</label>
+                  <textarea
+                    value={newApp.description}
+                    onChange={(e) => setNewApp({ ...newApp, description: e.target.value })}
+                  />
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm font-semibold text-black">表示順</label>
+                  <input
+                    type="number"
+                    value={newApp.order}
+                    onChange={(e) => setNewApp({ ...newApp, order: Number(e.target.value) })}
+                  />
+                </div>
+
+                <p className="text-sm text-black/60">画像は追加したあと、編集から設定できます。</p>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleCreateApp}
+                    disabled={creating}
+                    className="rounded-lg bg-accel-primary px-6 py-2 text-white hover:bg-accel-hover active:bg-accel-active"
+                  >
+                    {creating ? '追加中…' : '追加する'}
+                  </button>
+                  <button
+                    onClick={() => setShowNewApp(false)}
+                    className="rounded-lg border-2 border-border-soft px-6 py-2 text-black hover:border-accel-secondary"
+                  >
+                    キャンセル
+                  </button>
+                </div>
+              </div>
+            )}
 
             {apps.length === 0 ? (
               <p className="text-black/70">アプリがありません</p>
