@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { Mail, Lock } from 'lucide-react'
 
@@ -99,9 +100,12 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <p className="mt-8 text-center text-sm text-black/70">
-          従業員のみアクセス可能
-        </p>
+        <div className="mt-8 flex flex-col items-center gap-3">
+          <Link href="/auth/reset" className="text-sm underline">
+            パスワードをお忘れですか？
+          </Link>
+          <p className="text-sm text-black/70">招待された方のみアクセスできます</p>
+        </div>
       </div>
     </div>
   )
