@@ -24,6 +24,7 @@ interface User {
   confirmed: boolean
   is_admin: boolean
   is_me: boolean
+  app_ids: string[]
 }
 
 type Notice = { kind: 'ok' | 'ng'; text: string } | null
@@ -267,6 +268,36 @@ export default function Home() {
     setNotice({ kind: 'ok', text: `${newUserEmail} に招待メールを送信しました` })
   }
 
+
+  // アプリ権限の付け外し。画面を先に更新し、失敗したら戻す。
+  async function toggleAppAccess(userId: string, appId: string, allow: boolean) {
+    const before = users
+    setUsers((prev) =>
+      prev.map((u) =>
+        u.id !== userId
+          ? u
+          : {
+              ...u,
+              app_ids: allow
+                ? [...u.app_ids, appId]
+                : u.app_ids.filter((id) => id !== appId)
+            }
+      )
+    )
+
+    const res = await fetch('/api/users', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId, app_id: appId, allow })
+    })
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => null)
+      setUsers(before)
+      setNotice({ kind: 'ng', text: body?.error ?? `権限を変更できませんでした（${res.status}）` })
+    }
+  }
+
   async function handleDeleteUser(userId: string) {
     const res = await fetch(`/api/users?id=${userId}`, {
       method: 'DELETE',
@@ -431,7 +462,16 @@ export default function Home() {
             )}
 
             {apps.length === 0 ? (
-              <p className="text-black/70">アプリがありません</p>
+              isAdmin ? (
+                <p className="text-black/70">アプリがありません</p>
+              ) : (
+                <div className="rounded-2xl border border-border-soft bg-surface p-6">
+                  <p className="text-black">利用できるアプリがまだ割り当てられていません。</p>
+                  <p className="mt-2 text-sm text-black/60">
+                    担当者に連絡してください。割り当てられると、このページに表示されます。
+                  </p>
+                </div>
+              )
             ) : (
               <div className="grid gap-5 sm:grid-cols-2">
                 {apps.map((app) => (
@@ -679,8 +719,8 @@ export default function Home() {
               <p className="mt-3 text-sm text-black/60">
                 招待メールのリンクからパスワードを設定してもらいます。
                 <br />
-                @accel-partners.co.jp は管理者（このタブとアプリ編集が使えます）。
-                それ以外のアドレスは一般ユーザーで、アプリ一覧の閲覧のみです。
+                @accel-partners.co.jp は管理者（このタブとアプリ編集が使え、全アプリが見えます）。
+                それ以外のアドレスは、下の一覧で「見せるアプリ」にチェックを入れたものだけが見えます。
               </p>
             </div>
 
@@ -733,6 +773,38 @@ export default function Home() {
                         </button>
                       )}
                     </div>
+
+                    {/* アプリ権限。管理者は RLS 側で全部見えるので対象外にする */}
+                    {!user.is_admin && (
+                      <div className="mt-4 rounded-lg bg-surface-muted px-4 py-3">
+                        <p className="mb-2 text-sm font-semibold text-black">
+                          見せるアプリ
+                          {user.app_ids.length === 0 && (
+                            <span className="ml-2 font-normal text-black/60">
+                              — 現在なし（ログインしても何も表示されません）
+                            </span>
+                          )}
+                        </p>
+                        <div className="flex flex-wrap gap-x-5 gap-y-2">
+                          {apps.map((app) => (
+                            <label
+                              key={app.id}
+                              className="flex items-center gap-2 text-sm text-black"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={user.app_ids.includes(app.id)}
+                                onChange={(e) =>
+                                  toggleAppAccess(user.id, app.id, e.target.checked)
+                                }
+                                className="h-4 w-4"
+                              />
+                              {app.title}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     {confirmingUser === user.id && (
                       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-red-50 px-4 py-3">

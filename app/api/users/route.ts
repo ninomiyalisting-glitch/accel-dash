@@ -15,6 +15,19 @@ export async function GET(req: NextRequest) {
   const { data, error } = await supabaseAdmin.auth.admin.listUsers({ perPage: 200 })
   if (error) return fail(error.message, 500)
 
+  // アプリ権限をまとめて取得してユーザーごとに束ねる（1 件ずつ引くと人数分の往復になる）
+  const { data: accessRows, error: accessError } = await supabaseAdmin
+    .from('app_access')
+    .select('app_id, user_id')
+  if (accessError) return fail(`アプリ権限の取得に失敗しました：${accessError.message}`, 500)
+
+  const accessByUser = new Map<string, string[]>()
+  for (const r of accessRows ?? []) {
+    const list = accessByUser.get(r.user_id) ?? []
+    list.push(r.app_id)
+    accessByUser.set(r.user_id, list)
+  }
+
   const users = (data?.users ?? [])
     .map((u) => ({
       id: u.id,
@@ -23,7 +36,8 @@ export async function GET(req: NextRequest) {
       last_sign_in_at: u.last_sign_in_at ?? null,
       is_admin: Boolean(u.email?.endsWith(ADMIN_DOMAIN)),
       confirmed: Boolean(u.email_confirmed_at || u.confirmed_at),
-      is_me: u.id === me.id
+      is_me: u.id === me.id,
+      app_ids: accessByUser.get(u.id) ?? []
     }))
     .sort((a, b) => (a.is_me === b.is_me ? a.email.localeCompare(b.email) : a.is_me ? -1 : 1))
 
@@ -67,6 +81,41 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({ email: address, message: '招待メールを送信しました' }, { status: 201 })
+}
+
+/**
+ * アプリ権限の付け外し。
+ * 担当者（@accel-partners.co.jp）は RLS 側で全アプリが見えるため、
+ * ここでの設定は実質それ以外のユーザーに効く。
+ */
+export async function PATCH(req: NextRequest) {
+  const auth = await requireAdmin(req)
+  if (!auth.ok) return fail(auth.message, auth.status)
+  const me = auth.user
+
+  const body = await req.json().catch(() => null)
+  const userId = String((body as Record<string, unknown>)?.user_id ?? '')
+  const appId = String((body as Record<string, unknown>)?.app_id ?? '')
+  const allow = Boolean((body as Record<string, unknown>)?.allow)
+
+  if (!userId) return fail('ユーザー ID が必要です')
+  if (!appId) return fail('アプリ ID が必要です')
+
+  if (allow) {
+    const { error } = await supabaseAdmin
+      .from('app_access')
+      .upsert({ app_id: appId, user_id: userId, granted_by: me.id }, { onConflict: 'app_id,user_id' })
+    if (error) return fail(`権限の付与に失敗しました：${error.message}`, 500)
+  } else {
+    const { error } = await supabaseAdmin
+      .from('app_access')
+      .delete()
+      .eq('app_id', appId)
+      .eq('user_id', userId)
+    if (error) return fail(`権限の解除に失敗しました：${error.message}`, 500)
+  }
+
+  return NextResponse.json({ user_id: userId, app_id: appId, allow })
 }
 
 export async function DELETE(req: NextRequest) {
