@@ -27,6 +27,63 @@ interface User {
   app_ids: string[]
 }
 
+/**
+ * Supabase Storage の画像を縮小して取る URL を作る。
+ *
+ * アップロードは 5MB まで許容していて縮小もしていないため、
+ * 原寸のまま一覧に並べると数 MB × アプリ数を読み込むことになる。
+ * Storage の変換機能（/render/image/）で必要な幅だけ取る。
+ * 変換に対応していない URL はそのまま返す。
+ */
+function thumbUrl(url: string, width: number): string {
+  if (!url.includes('/storage/v1/object/public/')) return url
+  const converted = url.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/')
+  const sep = converted.includes('?') ? '&' : '?'
+  return `${converted}${sep}width=${width}&quality=70&resize=cover`
+}
+
+/**
+ * 画像を指定した幅以下に縮小する。JPEG で書き出す。
+ * 元より小さい場合や、読み込みに失敗した場合は元のファイルを返す
+ * （縮小できないことでアップロード自体が失敗しないようにする）。
+ */
+async function shrinkImage(file: File, maxWidth: number): Promise<File> {
+  if (!file.type.startsWith('image/') || file.type === 'image/svg+xml') return file
+
+  try {
+    const bitmap = await createImageBitmap(file)
+    if (bitmap.width <= maxWidth) {
+      bitmap.close()
+      return file
+    }
+
+    const scale = maxWidth / bitmap.width
+    const w = maxWidth
+    const h = Math.round(bitmap.height * scale)
+
+    const canvas = document.createElement('canvas')
+    canvas.width = w
+    canvas.height = h
+    const ctx = canvas.getContext('2d')
+    if (!ctx) {
+      bitmap.close()
+      return file
+    }
+    ctx.drawImage(bitmap, 0, 0, w, h)
+    bitmap.close()
+
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, 'image/jpeg', 0.82)
+    )
+    if (!blob || blob.size >= file.size) return file
+
+    const name = file.name.replace(/\.[^.]+$/, '') + '.jpg'
+    return new File([blob], name, { type: 'image/jpeg' })
+  } catch {
+    return file
+  }
+}
+
 type Notice = { kind: 'ok' | 'ng'; text: string } | null
 
 export default function Home() {
@@ -65,6 +122,12 @@ export default function Home() {
   }, [])
 
   async function authHeaders(extra: Record<string, string> = {}) {
+    // state に持っているトークンを先に使う。
+    // 以前は毎回 getSession() を呼んでいて、操作のたびに往復が増えていた。
+    // 無いときだけ取りに行く（初回や期限切れの直後）。
+    if (session?.access_token) {
+      return { ...extra, Authorization: `Bearer ${session.access_token}` }
+    }
     const { data } = await supabase.auth.getSession()
     return { ...extra, Authorization: `Bearer ${data.session?.access_token ?? ''}` }
   }
@@ -90,9 +153,18 @@ export default function Home() {
     const admin = email.endsWith('@accel-partners.co.jp')
     setIsAdmin(admin)
 
+    // アプリ一覧だけ待って画面を出す。
+    // 以前は fetchUsers() も待っていたため、管理者は
+    //   getSession → apps → /api/users（Auth の全ユーザー取得 + app_access）
+    // を直列で待たされ、その間ずっと空白だった。
+    // ユーザー一覧は「ユーザー」タブを開くまで見えないので、裏で読む。
     await fetchApps()
-    if (admin) await fetchUsers()
     setLoading(false)
+
+    if (admin) {
+      // 待たない。取得できたら一覧に反映される
+      void fetchUsers()
+    }
   }
 
   async function fetchApps() {
@@ -207,8 +279,14 @@ export default function Home() {
     setUploading(true)
     setStockError('')
 
+    // 送る前にブラウザで縮小する。
+    // 5MB の写真をそのまま置くと一覧の読み込みが重くなるうえ、
+    // Storage の変換も初回だけ時間がかかる。
+    // 一覧の表示は幅 800px の帯なので 1600px あれば十分。
+    const shrunk = await shrinkImage(file, 1600)
+
     const form = new FormData()
-    form.append('file', file)
+    form.append('file', shrunk)
 
     const res = await fetch('/api/upload', {
       method: 'POST',
@@ -626,7 +704,19 @@ export default function Home() {
                     ) : (
                       <>
                         {app.image_url && (
-                          <img src={app.image_url} alt="" className="h-40 w-full object-cover" />
+                          // 原寸を読むと重い。表示は高さ 160px の帯なので、
+                          // Supabase Storage の変換で幅 800px・品質 70 に落として取る。
+                          // width/height を書くのはレイアウトのガタつき防止。
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={thumbUrl(app.image_url, 800)}
+                            alt=""
+                            width={800}
+                            height={160}
+                            loading="lazy"
+                            decoding="async"
+                            className="h-40 w-full object-cover bg-surface-muted"
+                          />
                         )}
                         <div className="flex items-start justify-between gap-4 p-6">
                           <div className="min-w-0">

@@ -12,13 +12,18 @@ export async function GET(req: NextRequest) {
   if (!auth.ok) return fail(auth.message, auth.status)
   const me = auth.user
 
-  const { data, error } = await supabaseAdmin.auth.admin.listUsers({ perPage: 200 })
+  // ユーザー一覧とアプリ権限は互いに独立しているので同時に取る。
+  // 直列にすると Auth の一覧取得を待ってから権限を引くことになり、
+  // 管理者の初回表示がその分だけ遅くなる。
+  const [usersRes, accessRes] = await Promise.all([
+    supabaseAdmin.auth.admin.listUsers({ perPage: 200 }),
+    supabaseAdmin.from('app_access').select('app_id, user_id'),
+  ])
+
+  const { data, error } = usersRes
   if (error) return fail(error.message, 500)
 
-  // アプリ権限をまとめて取得してユーザーごとに束ねる（1 件ずつ引くと人数分の往復になる）
-  const { data: accessRows, error: accessError } = await supabaseAdmin
-    .from('app_access')
-    .select('app_id, user_id')
+  const { data: accessRows, error: accessError } = accessRes
   if (accessError) return fail(`アプリ権限の取得に失敗しました：${accessError.message}`, 500)
 
   const accessByUser = new Map<string, string[]>()
