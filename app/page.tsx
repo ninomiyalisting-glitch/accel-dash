@@ -4,8 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { signOut } from '@/lib/auth'
-import { Pencil, Trash2, LogOut, Plus, Upload, ImageIcon, X, FolderOpen } from 'lucide-react'
-import Link from 'next/link'
+import { Pencil, Trash2, LogOut, Plus, Upload, ImageIcon, X } from 'lucide-react'
 
 interface App {
   id: string
@@ -29,18 +28,16 @@ interface User {
 }
 
 /**
- * Supabase Storage の画像を縮小して取る URL を作る。
- *
- * アップロードは 5MB まで許容していて縮小もしていないため、
- * 原寸のまま一覧に並べると数 MB × アプリ数を読み込むことになる。
- * Storage の変換機能（/render/image/）で必要な幅だけ取る。
- * 変換に対応していない URL はそのまま返す。
+ * タイルのリンク先。
+ * スラッグはふつう `magnet` のようなサブドメイン名だが、`/docs` のように
+ * `/` で始まるものはポータル内のページとして扱う（資料置き場など）。
+ * こうしておくと、ポータル内の機能も「アプリ」の1つとして並び順や名前を編集できる。
  */
-function thumbUrl(url: string, width: number): string {
-  if (!url.includes('/storage/v1/object/public/')) return url
-  const converted = url.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/')
-  const sep = converted.includes('?') ? '&' : '?'
-  return `${converted}${sep}width=${width}&quality=70&resize=cover`
+function appHref(slug: string): string {
+  return slug.startsWith('/') ? slug : `https://${slug}.accel-dash.com`
+}
+function appHostLabel(slug: string): string {
+  return slug.startsWith('/') ? `accel-dash.com${slug}` : `${slug}.accel-dash.com`
 }
 
 /**
@@ -553,22 +550,6 @@ export default function Home() {
               )
             ) : (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {/* 資料置き場。DB のアプリではなくポータル内のページなので、ここで固定表示。
-                    担当者だけに出す（社外ユーザーには DB 側でも見せない） */}
-                {isAdmin && (
-                  <Link
-                    href="/docs"
-                    className="flex items-center gap-4 rounded-2xl border border-border-soft bg-surface p-4 transition-colors hover:border-accel-secondary"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <h3 className="mb-0.5 text-base">資料置き場</h3>
-                      <p className="text-sm leading-snug text-black/70">Google ドライブの重要資料・マニュアル・共有シート</p>
-                    </div>
-                    <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-accel-lightest text-accel-text">
-                      <FolderOpen size={22} />
-                    </span>
-                  </Link>
-                )}
                 {apps.map((app) => (
                   <article
                     key={app.id}
@@ -722,27 +703,14 @@ export default function Home() {
                       <>
                         <div className="flex items-center gap-3 p-4">
                           <a
-                            href={`https://${app.slug}.accel-dash.com`}
+                            href={appHref(app.slug)}
                             className="flex min-w-0 flex-1 items-center gap-4"
                           >
                             <div className="min-w-0 flex-1">
                               <h3 className="mb-0.5 text-base">{app.title}</h3>
                               <p className="line-clamp-2 text-sm leading-snug text-black/70">{app.description}</p>
-                              <span className="mt-1 block truncate text-xs text-black/40">{app.slug}.accel-dash.com</span>
+                              <span className="mt-1 block truncate text-xs text-black/40">{appHostLabel(app.slug)}</span>
                             </div>
-                            {app.image_url && (
-                              // 右端の小さなサムネイル。表示は 48px なので幅 96px で取る
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                src={thumbUrl(app.image_url, 96)}
-                                alt=""
-                                width={48}
-                                height={48}
-                                loading="lazy"
-                                decoding="async"
-                                className="h-12 w-12 flex-shrink-0 rounded-xl object-cover bg-surface-muted"
-                              />
-                            )}
                           </a>
                           {isAdmin && (
                             <div className="flex flex-shrink-0 flex-col gap-0.5">

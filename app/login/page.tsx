@@ -6,6 +6,15 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { Mail, Lock } from 'lucide-react'
 
+function isAccelDashUrl(raw: string): boolean {
+  try {
+    const u = new URL(raw)
+    return u.protocol === 'https:' && (u.hostname === 'accel-dash.com' || u.hostname.endsWith('.accel-dash.com'))
+  } catch {
+    return false
+  }
+}
+
 export default function LoginPage() {
   const router = useRouter()
   const [email, setEmail] = useState('')
@@ -27,6 +36,13 @@ export default function LoginPage() {
       if (signInError) throw signInError
 
       if (data.session) {
+        // サブアプリ（crm.accel-dash.com など）から来た場合は元の場所へ戻す。
+        // 戻り先は accel-dash.com 配下だけ許可する（外部サイトへの飛ばし防止）
+        const next = new URLSearchParams(window.location.search).get('next')
+        if (next && isAccelDashUrl(next)) {
+          window.location.replace(next)
+          return
+        }
         router.push('/')
       }
     } catch (err: any) {
