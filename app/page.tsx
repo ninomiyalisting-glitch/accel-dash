@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { signOut } from '@/lib/auth'
-import { Pencil, Trash2, LogOut, Plus, Upload, ImageIcon, X } from 'lucide-react'
+import { Pencil, Trash2, LogOut, Plus, Upload, ImageIcon, X, FolderOpen } from 'lucide-react'
+import Link from 'next/link'
 
 interface App {
   id: string
@@ -406,6 +407,16 @@ export default function Home() {
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4 px-6 py-5">
           <img src="/logo.png" alt="ACCEL DASH" className="h-9 w-auto" />
           <div className="flex items-center gap-4">
+            {/* 資料置き場。担当者だけに出す（社外ユーザーには DB 側でも見せない） */}
+            {isAdmin && (
+              <Link
+                href="/docs"
+                className="flex items-center gap-1.5 rounded-lg border-2 border-border-soft bg-surface px-4 py-2 font-semibold text-black hover:border-accel-secondary"
+              >
+                <FolderOpen size={18} />
+                資料
+              </Link>
+            )}
             {session?.user?.email && (
               <span className="text-sm text-black/70">{session.user.email}</span>
             )}
