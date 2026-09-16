@@ -6,21 +6,21 @@
    （Tailwind v4 では tailwind.config.ts ではなく、この @theme が設定元）
    =================================================================== */
 @theme {
-  /* カラー — グリーン系 */
-  --color-accel-lightest: #e8f5c9;
-  --color-accel-light: #a8e67d;
-  --color-accel-secondary: #6fd433;
-  --color-accel-hover: #3db800;
-  --color-accel-primary: #279300;
-  --color-accel-active: #1f7a00;
-  --color-accel-text: #145200;
+  /* カラー — ブルー系（2026-09 にグリーンから統一。基準は #007CB4） */
+  --color-accel-lightest: #e3f2fb;
+  --color-accel-light: #8fd3f4;
+  --color-accel-secondary: #4ab8e8;
+  --color-accel-hover: #0097db;
+  --color-accel-primary: #007cb4;
+  --color-accel-active: #006899;
+  --color-accel-text: #004f75;
   --color-ink: #000000;
-  --color-accel-dark: #0d3800;
+  --color-accel-dark: #063a55;
 
   /* 面の色 */
   --color-surface: #ffffff;
-  --color-surface-muted: #f7faf2;
-  --color-border-soft: #dbe8c8;
+  --color-surface-muted: #f3f8fc;
+  --color-border-soft: #cfe3f0;
 
   /* フォント — 游ゴシック体 */
   --font-sans: "Yu Gothic", "游ゴシック体", YuGothic, "Yu Gothic Medium",
@@ -128,7 +128,7 @@
 
   input::placeholder,
   textarea::placeholder {
-    color: #8a8f86;
+    color: #838c94;
   }
 
   textarea {

@@ -8,21 +8,21 @@
    ===================================================================== */
 
 :root {
-  /* ブランドカラー */
-  --accel-lightest: #e8f5c9;
-  --accel-light: #a8e67d;
-  --accel-secondary: #6fd433;
-  --accel-hover: #3db800;
-  --accel-primary: #279300;
-  --accel-active: #1f7a00;
-  --accel-deep: #145200;
-  --accel-dark: #0d3800;
+  /* ブランドカラー（ブルー系。2026-09 にグリーンから統一。基準は #007CB4） */
+  --accel-lightest: #e3f2fb;
+  --accel-light: #8fd3f4;
+  --accel-secondary: #4ab8e8;
+  --accel-hover: #0097db;
+  --accel-primary: #007cb4;
+  --accel-active: #006899;
+  --accel-deep: #004f75;
+  --accel-dark: #063a55;
 
   /* 面と文字 */
   --accel-ink: #000000;
   --accel-surface: #ffffff;
-  --accel-surface-muted: #f7faf2;
-  --accel-border: #dbe8c8;
+  --accel-surface-muted: #f3f8fc;
+  --accel-border: #cfe3f0;
 
   /* タイポグラフィ */
   --accel-font: "Yu Gothic", "游ゴシック体", YuGothic, "Yu Gothic Medium",
@@ -40,8 +40,8 @@
   --surface-1: var(--accel-surface);
   --surface-2: var(--accel-surface);
   --text-primary: var(--accel-ink);
-  --text-secondary: #44483f;
-  --text-muted: #7a8074;
+  --text-secondary: #414a52;
+  --text-muted: #6f7a84;
   --gridline: var(--accel-border);
   --border: var(--accel-border);
 }
