@@ -407,16 +407,6 @@ export default function Home() {
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4 px-6 py-5">
           <img src="/logo.png" alt="ACCEL DASH" className="h-9 w-auto" />
           <div className="flex items-center gap-4">
-            {/* 資料置き場。担当者だけに出す（社外ユーザーには DB 側でも見せない） */}
-            {isAdmin && (
-              <Link
-                href="/docs"
-                className="flex items-center gap-1.5 rounded-lg border-2 border-border-soft bg-surface px-4 py-2 font-semibold text-black hover:border-accel-secondary"
-              >
-                <FolderOpen size={18} />
-                資料
-              </Link>
-            )}
             {session?.user?.email && (
               <span className="text-sm text-black/70">{session.user.email}</span>
             )}
@@ -562,11 +552,27 @@ export default function Home() {
                 </div>
               )
             ) : (
-              <div className="grid gap-5 sm:grid-cols-2">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {/* 資料置き場。DB のアプリではなくポータル内のページなので、ここで固定表示。
+                    担当者だけに出す（社外ユーザーには DB 側でも見せない） */}
+                {isAdmin && (
+                  <Link
+                    href="/docs"
+                    className="flex items-center gap-4 rounded-2xl border border-border-soft bg-surface p-4 transition-colors hover:border-accel-secondary"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <h3 className="mb-0.5 text-base">資料置き場</h3>
+                      <p className="text-sm leading-snug text-black/70">Google ドライブの重要資料・マニュアル・共有シート</p>
+                    </div>
+                    <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-accel-lightest text-accel-text">
+                      <FolderOpen size={22} />
+                    </span>
+                  </Link>
+                )}
                 {apps.map((app) => (
                   <article
                     key={app.id}
-                    className="overflow-hidden rounded-2xl border border-border-soft bg-surface"
+                    className="overflow-hidden rounded-2xl border border-border-soft bg-surface transition-colors hover:border-accel-secondary"
                   >
                     {editingId === app.id ? (
                       <div className="flex flex-col gap-5 p-6">
@@ -714,47 +720,45 @@ export default function Home() {
                       </div>
                     ) : (
                       <>
-                        {app.image_url && (
-                          // 原寸を読むと重い。表示は高さ 160px の帯なので、
-                          // Supabase Storage の変換で幅 800px・品質 70 に落として取る。
-                          // width/height を書くのはレイアウトのガタつき防止。
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={thumbUrl(app.image_url, 800)}
-                            alt=""
-                            width={800}
-                            height={160}
-                            loading="lazy"
-                            decoding="async"
-                            className="h-40 w-full object-cover bg-surface-muted"
-                          />
-                        )}
-                        <div className="flex items-start justify-between gap-4 p-6">
-                          <div className="min-w-0">
-                            <h3 className="mb-1">{app.title}</h3>
-                            <p className="mb-3 text-sm text-black/80">{app.description}</p>
-                            <a
-                              href={`https://${app.slug}.accel-dash.com`}
-                              className="text-sm break-all underline"
-                            >
-                              {app.slug}.accel-dash.com →
-                            </a>
-                          </div>
+                        <div className="flex items-center gap-3 p-4">
+                          <a
+                            href={`https://${app.slug}.accel-dash.com`}
+                            className="flex min-w-0 flex-1 items-center gap-4"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <h3 className="mb-0.5 text-base">{app.title}</h3>
+                              <p className="line-clamp-2 text-sm leading-snug text-black/70">{app.description}</p>
+                              <span className="mt-1 block truncate text-xs text-black/40">{app.slug}.accel-dash.com</span>
+                            </div>
+                            {app.image_url && (
+                              // 右端の小さなサムネイル。表示は 48px なので幅 96px で取る
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={thumbUrl(app.image_url, 96)}
+                                alt=""
+                                width={48}
+                                height={48}
+                                loading="lazy"
+                                decoding="async"
+                                className="h-12 w-12 flex-shrink-0 rounded-xl object-cover bg-surface-muted"
+                              />
+                            )}
+                          </a>
                           {isAdmin && (
-                            <div className="flex shrink-0 gap-1">
+                            <div className="flex flex-shrink-0 flex-col gap-0.5">
                               <button
                                 onClick={() => handleEditStart(app)}
                                 aria-label="編集"
-                                className="rounded-lg p-2 text-black hover:bg-accel-lightest"
+                                className="rounded-lg p-1.5 text-black/50 hover:bg-accel-lightest hover:text-black"
                               >
-                                <Pencil size={18} />
+                                <Pencil size={15} />
                               </button>
                               <button
                                 onClick={() => setConfirmingApp(app.id)}
                                 aria-label="削除"
-                                className="rounded-lg p-2 text-red-600 hover:bg-red-50"
+                                className="rounded-lg p-1.5 text-black/50 hover:bg-red-50 hover:text-red-600"
                               >
-                                <Trash2 size={18} />
+                                <Trash2 size={15} />
                               </button>
                             </div>
                           )}
