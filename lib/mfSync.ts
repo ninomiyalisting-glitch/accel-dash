@@ -287,12 +287,9 @@ async function syncInvoices(from: string, to: string, summary: SyncSummary) {
         subtotal: Math.round(num(b.subtotal_price)),
         tax: Math.round(num(b.excise_price)),
         total: Math.round(num(b.total_price)),
-        tags: b.tag_names ?? [],
-        items: (b.items ?? []).slice(0, 30).map((it) => ({
-          name: it.name || '',
-          price: num(it.price),
-          quantity: num(it.quantity),
-        })),
+        tags: (b.tag_names ?? []).slice(0, 5),
+        // 品目は CRM で使わないので件数だけ持つ。1 万行近くを毎回読み込むので、行を軽く保つ
+        itemCount: (b.items ?? []).length,
         updatedAt: b.updated_at || '',
       },
     }
