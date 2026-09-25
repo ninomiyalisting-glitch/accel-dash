@@ -28,16 +28,35 @@ interface User {
 }
 
 /**
- * タイルのリンク先。
- * スラッグはふつう `magnet` のようなサブドメイン名だが、`/docs` のように
- * `/` で始まるものはポータル内のページとして扱う（資料置き場など）。
- * こうしておくと、ポータル内の機能も「アプリ」の1つとして並び順や名前を編集できる。
+ * タイルのリンク先。slug は 3 通りの書き方を受け付ける。
+ *   magnet                  → https://magnet.accel-dash.com（サブドメイン）
+ *   /docs                   → ポータル内のページ（資料置き場、マネーフォワード連携 など）
+ *   https://example.com/... → 外部の URL をそのまま
+ * こうしておくと、ポータル内の機能や外部サービスも「アプリ」の1つとして並び順や名前を編集できる。
  */
+function isFullUrl(slug: string): boolean {
+  return /^https?:\/\//i.test(slug)
+}
 function appHref(slug: string): string {
+  if (isFullUrl(slug)) return slug
   return slug.startsWith('/') ? slug : `https://${slug}.accel-dash.com`
 }
 function appHostLabel(slug: string): string {
+  if (isFullUrl(slug)) {
+    try {
+      const u = new URL(slug)
+      return u.host + (u.pathname === '/' ? '' : u.pathname)
+    } catch {
+      return slug
+    }
+  }
   return slug.startsWith('/') ? `accel-dash.com${slug}` : `${slug}.accel-dash.com`
+}
+/** 入力された slug を保存する形に整える。サブドメインだけ小文字にし、URL とパスはそのまま */
+function normalizeSlug(raw: string): string {
+  const v = raw.trim()
+  if (isFullUrl(v) || v.startsWith('/')) return v
+  return v.toLowerCase().replace(/\.accel-dash\.com$/i, '')
 }
 
 /**
@@ -230,8 +249,16 @@ export default function Home() {
 
   async function handleCreateApp() {
     if (!newApp.slug.trim() || !newApp.title.trim()) {
-      setNotice({ kind: 'ng', text: 'サブドメインとアプリ名は必須です' })
+      setNotice({ kind: 'ng', text: 'リンク先とアプリ名は必須です' })
       return
+    }
+    if (isFullUrl(newApp.slug.trim())) {
+      try {
+        new URL(newApp.slug.trim())
+      } catch {
+        setNotice({ kind: 'ng', text: 'URL の形式が正しくありません（例：https://example.com/path）' })
+        return
+      }
     }
 
     setCreating(true)
@@ -239,7 +266,7 @@ export default function Home() {
       method: 'POST',
       headers: await authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
-        slug: newApp.slug.trim().toLowerCase(),
+        slug: normalizeSlug(newApp.slug),
         title: newApp.title.trim(),
         description: newApp.description.trim(),
         order: Number(newApp.order) || 0
@@ -477,17 +504,23 @@ export default function Home() {
             {showNewApp && isAdmin && (
               <div className="mb-6 flex flex-col gap-4 rounded-2xl border border-border-soft bg-surface p-6">
                 <div className="flex flex-col gap-2">
-                  <label className="text-sm font-semibold text-black">サブドメイン</label>
+                  <label className="text-sm font-semibold text-black">リンク先</label>
                   <div className="flex flex-wrap items-center gap-2">
                     <input
                       type="text"
                       value={newApp.slug}
                       onChange={(e) => setNewApp({ ...newApp, slug: e.target.value })}
-                      placeholder="magnet"
+                      placeholder="magnet　または　/mf　または　https://…"
                       className="min-w-[160px] flex-1"
                     />
-                    <span className="text-sm text-black/60">.accel-dash.com</span>
+                    {!isFullUrl(newApp.slug.trim()) && !newApp.slug.trim().startsWith('/') && (
+                      <span className="text-sm text-black/60">.accel-dash.com</span>
+                    )}
                   </div>
+                  <p className="text-xs text-black/50">
+                    サブドメイン名（magnet）、ポータル内のパス（/mf）、外部の URL（https://…）のどれでも入れられます。
+                    {newApp.slug.trim() && <> → <span className="font-mono">{appHref(normalizeSlug(newApp.slug))}</span></>}
+                  </p>
                 </div>
 
                 <div className="flex flex-col gap-2">
