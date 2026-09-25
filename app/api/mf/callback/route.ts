@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
   if (mfError) return back({ error: `マネーフォワード側で認可が完了しませんでした：${mfError}` })
 
   const cookie = req.cookies.get('mf_oauth_state')?.value || ''
-  const [savedState, savedEmail] = cookie.split('.')
+  const [savedState, savedEmail] = cookie.split('|')
   if (!code || !state || !savedState || savedState !== state) {
     return back({ error: '認可の状態を確認できませんでした。もう一度「接続する」からやり直してください' })
   }

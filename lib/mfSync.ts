@@ -345,11 +345,13 @@ function toFinanceRows(journals: JournalItem[]) {
         no,
         da: d?.account_name || '',
         dsub: d?.sub_account_name || '',
-        dam: num(d?.value),
+        // MF API の value は税抜、tax_value は消費税。財務アプリ（弥生の仕訳日記帳と同じ形）は
+        // 金額＝税込・消費税＝内数 なので足して入れる。これで借方合計＝貸方合計になる
+        dam: num(d?.value) + num(d?.tax_value),
         dtax: num(d?.tax_value),
         ca: c?.account_name || '',
         csub: c?.sub_account_name || '',
-        cam: num(c?.value),
+        cam: num(c?.value) + num(c?.tax_value),
         ctax: num(c?.tax_value),
         memo: br.remark || j.memo || '',
         jno: String(j.number ?? ''),

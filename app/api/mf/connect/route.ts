@@ -21,7 +21,8 @@ export async function GET(req: NextRequest) {
   }
   const state = randomBytes(24).toString('base64url')
   const res = NextResponse.json({ url: buildAuthorizeUrl(state), redirectUri: mfRedirectUri() })
-  res.cookies.set('mf_oauth_state', `${state}.${encodeURIComponent(auth.user.email)}`, {
+  // 区切りは '|'（メールアドレスに '.' が含まれるため）
+  res.cookies.set('mf_oauth_state', `${state}|${encodeURIComponent(auth.user.email)}`, {
     httpOnly: true,
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
