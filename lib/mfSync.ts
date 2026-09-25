@@ -272,25 +272,17 @@ async function syncInvoices(from: string, to: string, summary: SyncSummary) {
       note: b.title || '',
       createdAt: prev?.createdAt || now,
       updatedAt: now,
+      // CRM が起動時に 1 万行近くを読み込むので、画面で使う項目だけに絞って行を軽く保つ
       mf: {
         id: b.id,
         number: b.billing_number || '',
         partner,
-        partnerId: b.partner_id || '',
         title: b.title || '',
         billingDate: b.billing_date || '',
-        salesDate: b.sales_date || '',
         dueDate: b.due_date || '',
         payment: b.payment_status || '',
-        email: b.email_status || '',
-        locked: Boolean(b.is_locked),
-        subtotal: Math.round(num(b.subtotal_price)),
-        tax: Math.round(num(b.excise_price)),
         total: Math.round(num(b.total_price)),
-        tags: (b.tag_names ?? []).slice(0, 5),
-        // 品目は CRM で使わないので件数だけ持つ。1 万行近くを毎回読み込むので、行を軽く保つ
         itemCount: (b.items ?? []).length,
-        updatedAt: b.updated_at || '',
       },
     }
     rows.push({ collection: 'revenues', id, data: data as unknown as Record<string, unknown> })
