@@ -72,10 +72,17 @@ interface CrmCustomer {
   owners?: { ownerId: string }[]
   active?: boolean
 }
+interface CrmIndividual {
+  id: string
+  name?: string
+  majorId?: string
+  minorId?: string
+}
 interface CrmRevenue {
   id: string
   source?: string
   customerId: string
+  individualId?: string
   dealId?: string
   month: string
   date: string
@@ -103,6 +110,7 @@ export interface SyncSummary {
     deleted: number
     unmatched: number
     unmatchedPartners: string[]
+    excluded?: number
   }
   journals: {
     months: Record<string, number>
@@ -208,8 +216,9 @@ async function syncInvoices(from: string, to: string, summary: SyncSummary) {
   const billings = await fetchBillings(from, to)
   summary.invoices.fetched = billings.length
 
-  const [customersRows, existingRows, mapRow] = await Promise.all([
+  const [customersRows, individualRows, existingRows, mapRow] = await Promise.all([
     loadCollection('crm_docs', 'customers'),
+    loadCollection('crm_docs', 'individuals'),
     loadCollection('crm_docs', 'revenues', 'mf-inv-'),
     supabaseAdmin.from('crm_docs').select('data').eq('collection', 'meta').eq('id', 'mfmap').maybeSingle(),
   ])
@@ -223,11 +232,24 @@ async function syncInvoices(from: string, to: string, summary: SyncSummary) {
     const k = nameKey(c.name || '')
     if (k) byNameKey.set(k, [...(byNameKey.get(k) ?? []), c])
   }
+  // 個人顧客（CRM の簡易台帳）。法人の顧客に一致しなかったときの候補にする
+  const individuals = new Map<string, CrmIndividual>()
+  const indByNameKey = new Map<string, CrmIndividual[]>()
+  for (const r of individualRows) {
+    const c = r.data as unknown as CrmIndividual
+    individuals.set(r.id, c)
+    const k = nameKey(c.name || '')
+    if (k) indByNameKey.set(k, [...(indByNameKey.get(k) ?? []), c])
+  }
   const existing = new Map<string, CrmRevenue>()
   for (const r of existingRows) existing.set(r.id, r.data as unknown as CrmRevenue)
 
-  const mapData = (mapRow.data?.data ?? {}) as { map?: Record<string, string> }
+  const mapData = (mapRow.data?.data ?? {}) as { map?: Record<string, string>; excludedPartners?: string[]; excludedIds?: string[] }
   const partnerMap: Record<string, string> = mapData.map ?? {}
+  // CRM で「載せない」にした取引先・請求書。取り込まず、既に入っている行は消す
+  const excludedPartners = new Set(mapData.excludedPartners ?? [])
+  const excludedIds = new Set((mapData.excludedIds ?? []).map(String))
+  let excluded = 0
 
   const now = new Date().toISOString()
   const rows: DocRow[] = []
@@ -236,24 +258,44 @@ async function syncInvoices(from: string, to: string, summary: SyncSummary) {
 
   for (const b of billings) {
     const id = `mf-inv-${b.id}`
-    seen.add(id)
     const prev = existing.get(id)
     const partner = (b.partner_name || '').trim()
+    if (excludedPartners.has(partner) || excludedIds.has(String(b.id))) {
+      excluded++
+      continue // seen に入れないので、既存の行があれば下の stale で消える
+    }
+    seen.add(id)
 
-    // 顧客の決め方：名寄せ表 → 以前の行で既に付いていた顧客 → 名前が一意に一致する顧客
-    let customerId = partnerMap[partner] || ''
-    if (!customerId && prev?.customerId && customers.has(prev.customerId)) customerId = prev.customerId
-    if (!customerId && partner) {
+    // 顧客の決め方：名寄せ表（顧客ID または "ind:<個人顧客ID>"）→ 以前の行で既に付いていた顧客／個人顧客
+    //   → 名前が一意に一致する顧客 → 名前が一意に一致する個人顧客
+    let customerId = ''
+    let individualId = ''
+    const mapped = partnerMap[partner] || ''
+    if (mapped.startsWith('ind:')) {
+      if (individuals.has(mapped.slice(4))) individualId = mapped.slice(4)
+    } else if (mapped && customers.has(mapped)) {
+      customerId = mapped
+    }
+    if (!customerId && !individualId && prev?.customerId && customers.has(prev.customerId)) customerId = prev.customerId
+    if (!customerId && !individualId && prev?.individualId && individuals.has(prev.individualId)) individualId = prev.individualId
+    if (!customerId && !individualId && partner) {
       const cands = byNameKey.get(nameKey(partner)) ?? []
       if (cands.length === 1) customerId = cands[0].id
+      else if (cands.length === 0) {
+        const icands = indByNameKey.get(nameKey(partner)) ?? []
+        if (icands.length === 1) individualId = icands[0].id
+      }
     }
-    if (!customerId) unmatched.add(partner || '（取引先なし）')
+    if (!customerId && !individualId) unmatched.add(partner || '（取引先なし）')
     const cust = customerId ? customers.get(customerId) : undefined
+    const ind = individualId ? individuals.get(individualId) : undefined
 
-    // 事業・サービス・担当者：顧客が変わっていなければ CRM で直した値を残す
-    const keepFields = prev && prev.customerId === customerId
-    const majorId = keepFields ? prev.majorId || cust?.majorId || '' : cust?.majorId || ''
-    const minorId = keepFields ? prev.minorId || cust?.minorId || '' : cust?.minorId || ''
+    // 事業・サービス・担当者：紐づけ先が変わっていなければ CRM で直した値を残す
+    const keepFields = prev && prev.customerId === customerId && (prev.individualId || '') === individualId
+    const baseMajor = cust?.majorId || ind?.majorId || ''
+    const baseMinor = cust?.minorId || ind?.minorId || ''
+    const majorId = keepFields ? prev.majorId || baseMajor : baseMajor
+    const minorId = keepFields ? prev.minorId || baseMinor : baseMinor
     const ownerId = keepFields ? prev.ownerId || primaryOwnerId(cust) : primaryOwnerId(cust)
 
     const month = ymOf(b.sales_date) || ymOf(b.billing_date)
@@ -261,6 +303,7 @@ async function syncInvoices(from: string, to: string, summary: SyncSummary) {
       id,
       source: 'mf',
       customerId,
+      individualId,
       dealId: prev?.dealId || '',
       month,
       date: b.billing_date || `${month}-01`,
@@ -300,6 +343,7 @@ async function syncInvoices(from: string, to: string, summary: SyncSummary) {
 
   summary.invoices.upserted = rows.length
   summary.invoices.deleted = stale.length
+  summary.invoices.excluded = excluded
   summary.invoices.unmatched = unmatched.size
   summary.invoices.unmatchedPartners = [...unmatched].sort().slice(0, 50)
 }
