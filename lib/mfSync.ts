@@ -315,10 +315,11 @@ async function syncInvoices(from: string, to: string, summary: SyncSummary) {
     const baseMinor = cust?.minorId || ind?.minorId || ''
     const majorId = keepFields ? prev.majorId || baseMajor : baseMajor
     const minorId = keepFields ? prev.minorId || baseMinor : baseMinor
-    // 担当者：請求書の担当者名が CRM の担当者に対応づいていればそれを優先。無ければ顧客の主担当（CRM で直した値は残す）
+    // 担当者：請求書の担当者名を CRM の担当者に対応づけたもの（無ければ空）
     const member = (b.member_name || '').trim()
     const memberOwner = ownerOfMember(member)
-    const ownerId = memberOwner || (keepFields ? prev.ownerId || primaryOwnerId(cust) : primaryOwnerId(cust))
+    // 会社全体の担当者では埋めない。CRM はこの担当者を「そのサービスの担当者」として扱う
+    const ownerId = memberOwner
 
     const month = ymOf(b.sales_date) || ymOf(b.billing_date)
     const data: CrmRevenue = {
