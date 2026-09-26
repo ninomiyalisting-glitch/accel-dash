@@ -261,6 +261,8 @@ async function syncInvoices(from: string, to: string, summary: SyncSummary) {
   const ownerOfMember = (member: string): string => {
     if (!member) return ''
     const mapped = memberMap[member]
+    // "none"＝対応なし、"ext:…"＝外部担当者（社内の担当者は付けない）
+    if (mapped === 'none' || (mapped || '').startsWith('ext:')) return ''
     if (mapped && ownerIds.has(mapped)) return mapped
     const cands = ownerByKey.get(nameKey(member)) ?? []
     return cands.length === 1 ? cands[0] : ''
