@@ -19,6 +19,8 @@ interface Billing {
   id: string
   partner_id: string | null
   partner_name: string | null
+  member_id?: string | null
+  member_name?: string | null
   title: string | null
   billing_date: string | null
   due_date: string | null
@@ -244,8 +246,25 @@ async function syncInvoices(from: string, to: string, summary: SyncSummary) {
   const existing = new Map<string, CrmRevenue>()
   for (const r of existingRows) existing.set(r.id, r.data as unknown as CrmRevenue)
 
-  const mapData = (mapRow.data?.data ?? {}) as { map?: Record<string, string>; excludedPartners?: string[]; excludedIds?: string[] }
+  const mapData = (mapRow.data?.data ?? {}) as { map?: Record<string, string>; excludedPartners?: string[]; excludedIds?: string[]; members?: Record<string, string> }
   const partnerMap: Record<string, string> = mapData.map ?? {}
+  // 請求書の担当者名 → CRM の社内担当者ID（CRM の紐づけ表で決める。無ければ名前の一致で自動）
+  const memberMap: Record<string, string> = mapData.members ?? {}
+  const masterRow = await supabaseAdmin.from('crm_docs').select('data').eq('collection', 'meta').eq('id', 'master').maybeSingle()
+  const owners = ((masterRow.data?.data as { owners?: { id: string; name: string; active?: boolean }[] } | undefined)?.owners ?? []).filter((o) => o.active !== false)
+  const ownerByKey = new Map<string, string[]>()
+  for (const o of owners) {
+    const k = nameKey(o.name || '')
+    if (k) ownerByKey.set(k, [...(ownerByKey.get(k) ?? []), o.id])
+  }
+  const ownerIds = new Set(owners.map((o) => o.id))
+  const ownerOfMember = (member: string): string => {
+    if (!member) return ''
+    const mapped = memberMap[member]
+    if (mapped && ownerIds.has(mapped)) return mapped
+    const cands = ownerByKey.get(nameKey(member)) ?? []
+    return cands.length === 1 ? cands[0] : ''
+  }
   // CRM で「載せない」にした取引先・請求書。取り込まず、既に入っている行は消す
   const excludedPartners = new Set(mapData.excludedPartners ?? [])
   const excludedIds = new Set((mapData.excludedIds ?? []).map(String))
@@ -296,7 +315,10 @@ async function syncInvoices(from: string, to: string, summary: SyncSummary) {
     const baseMinor = cust?.minorId || ind?.minorId || ''
     const majorId = keepFields ? prev.majorId || baseMajor : baseMajor
     const minorId = keepFields ? prev.minorId || baseMinor : baseMinor
-    const ownerId = keepFields ? prev.ownerId || primaryOwnerId(cust) : primaryOwnerId(cust)
+    // 担当者：請求書の担当者名が CRM の担当者に対応づいていればそれを優先。無ければ顧客の主担当（CRM で直した値は残す）
+    const member = (b.member_name || '').trim()
+    const memberOwner = ownerOfMember(member)
+    const ownerId = memberOwner || (keepFields ? prev.ownerId || primaryOwnerId(cust) : primaryOwnerId(cust))
 
     const month = ymOf(b.sales_date) || ymOf(b.billing_date)
     const data: CrmRevenue = {
@@ -320,6 +342,7 @@ async function syncInvoices(from: string, to: string, summary: SyncSummary) {
         id: b.id,
         number: b.billing_number || '',
         partner,
+        member,
         title: b.title || '',
         billingDate: b.billing_date || '',
         dueDate: b.due_date || '',
