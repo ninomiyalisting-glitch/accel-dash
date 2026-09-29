@@ -174,6 +174,18 @@ async function loadCollection(table: 'crm_docs' | 'finance_docs', collection: st
   return out
 }
 
+function compactItems(items: Billing['items']): { n: string; d?: string }[] {
+  const cut = (v: unknown, n: number) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, n)
+  return (items ?? [])
+    .map((it) => {
+      const n = cut(it?.name, 40)
+      const d = cut(it?.detail, 40)
+      return d ? { n, d } : { n }
+    })
+    .filter((it) => it.n || it.d)
+    .slice(0, 5)
+}
+
 async function upsertDocs(table: 'crm_docs' | 'finance_docs', rows: DocRow[]) {
   for (let i = 0; i < rows.length; i += CHUNK) {
     const chunk = rows.slice(i, i + CHUNK).map((r) => ({ ...r, updated_at: new Date().toISOString() }))
@@ -352,6 +364,10 @@ async function syncInvoices(from: string, to: string, summary: SyncSummary) {
         payment: b.payment_status || '',
         total: Math.round(num(b.total_price)),
         itemCount: (b.items ?? []).length,
+        // 品目名・詳細とタグ。件名が「◯月分ご請求」のように抽象的な請求書でも、CRM がサービスを判定する手がかりになる。
+        // 行を軽く保つため、品目は最大5件・各40文字まで
+        items: compactItems(b.items),
+        tags: (b.tag_names ?? []).map((t) => String(t).trim()).filter(Boolean).slice(0, 5),
       },
     }
     rows.push({ collection: 'revenues', id, data: data as unknown as Record<string, unknown> })
