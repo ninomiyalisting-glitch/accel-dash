@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { signOut } from '@/lib/auth'
+import { isFinanceApp, canManageFinance, FINANCE_OWNER } from '@/lib/financeAccess'
 import { Pencil, Trash2, LogOut, Plus, Upload, ImageIcon, X } from 'lucide-react'
 
 interface App {
@@ -880,37 +881,62 @@ export default function Home() {
                       )}
                     </div>
 
-                    {/* アプリ権限。管理者は RLS 側で全部見えるので対象外にする */}
-                    {!user.is_admin && (
-                      <div className="mt-4 rounded-lg bg-surface-muted px-4 py-3">
-                        <p className="mb-2 text-sm font-semibold text-black">
-                          見せるアプリ
-                          {user.app_ids.length === 0 && (
-                            <span className="ml-2 font-normal text-black/60">
-                              — 現在なし（ログインしても何も表示されません）
-                            </span>
-                          )}
-                        </p>
-                        <div className="flex flex-wrap gap-x-5 gap-y-2">
-                          {apps.map((app) => (
-                            <label
-                              key={app.id}
-                              className="flex items-center gap-2 text-sm text-black"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={user.app_ids.includes(app.id)}
-                                onChange={(e) =>
-                                  toggleAppAccess(user.id, app.id, e.target.checked)
-                                }
-                                className="h-4 w-4"
-                              />
-                              {app.title}
-                            </label>
-                          ))}
+                    {/* アプリ権限。管理者（社内ドメイン）は財務以外のアプリが RLS 側で全部見えるので、財務だけ出す。
+                        財務は finance_members が正で、付け外しできるのは FINANCE_OWNER だけ */}
+                    {(() => {
+                      const me = users.find((u) => u.is_me)
+                      const financeEditable = canManageFinance(me?.email)
+                      const shown = user.is_admin ? apps.filter((a) => isFinanceApp(a)) : apps
+                      if (shown.length === 0) return null
+                      return (
+                        <div className="mt-4 rounded-lg bg-surface-muted px-4 py-3">
+                          <p className="mb-2 text-sm font-semibold text-black">
+                            {user.is_admin ? '財務の閲覧' : '見せるアプリ'}
+                            {!user.is_admin && user.app_ids.length === 0 && (
+                              <span className="ml-2 font-normal text-black/60">
+                                — 現在なし（ログインしても何も表示されません）
+                              </span>
+                            )}
+                            {user.is_admin && (
+                              <span className="ml-2 font-normal text-black/60">
+                                — 社内ドメインでも、チェックを付けた人だけが財務を見られます
+                              </span>
+                            )}
+                          </p>
+                          <div className="flex flex-wrap gap-x-5 gap-y-2">
+                            {shown.map((app) => {
+                              const fin = isFinanceApp(app)
+                              const locked = fin && (!financeEditable || user.email.toLowerCase() === FINANCE_OWNER)
+                              return (
+                                <label
+                                  key={app.id}
+                                  className={`flex items-center gap-2 text-sm text-black ${locked ? 'opacity-60' : ''}`}
+                                  title={
+                                    fin && !financeEditable
+                                      ? `財務の閲覧権限は ${FINANCE_OWNER} だけが変更できます`
+                                      : fin && locked
+                                        ? '管理者本人の財務の権限は外せません'
+                                        : undefined
+                                  }
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={user.app_ids.includes(app.id)}
+                                    disabled={locked}
+                                    onChange={(e) =>
+                                      toggleAppAccess(user.id, app.id, e.target.checked)
+                                    }
+                                    className="h-4 w-4"
+                                  />
+                                  {app.title}
+                                  {fin && <span className="text-xs text-black/50">（二宮のみ変更可）</span>}
+                                </label>
+                              )
+                            })}
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )
+                    })()}
 
                     {confirmingUser === user.id && (
                       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-red-50 px-4 py-3">
