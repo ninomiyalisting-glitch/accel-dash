@@ -390,7 +390,7 @@ export default function Home() {
 
     const res = await fetch('/api/users', {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ user_id: userId, app_id: appId, allow })
     })
 
