@@ -174,16 +174,28 @@ async function loadCollection(table: 'crm_docs' | 'finance_docs', collection: st
   return out
 }
 
-function compactItems(items: Billing['items']): { n: string; d?: string }[] {
+function compactItems(items: Billing['items']): { n: string; d?: string; a?: number }[] {
   const cut = (v: unknown, n: number) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, n)
-  return (items ?? [])
+  // 品目ごとの金額（単価 × 数量、税抜）も持つ。1枚の請求書に複数サービスの品目があるとき、
+  // CRM が品目の金額の比で売上をサービスごとに分けるのに使う
+  const list = (items ?? [])
     .map((it) => {
       const n = cut(it?.name, 40)
       const d = cut(it?.detail, 40)
-      return d ? { n, d } : { n }
+      const q = it?.quantity == null || String(it.quantity).trim() === '' ? 1 : num(it.quantity)
+      const a = Math.round(num(it?.price) * q)
+      const o: { n: string; d?: string; a?: number } = { n }
+      if (d) o.d = d
+      if (a) o.a = a
+      return o
     })
-    .filter((it) => it.n || it.d)
-    .slice(0, 5)
+    .filter((it) => it.n || it.d || it.a)
+  // 行を軽く保つため最大10件。11件目以降は金額だけ1行にまとめる（合計は変わらない）
+  if (list.length <= 10) return list
+  const head = list.slice(0, 9)
+  const rest = list.slice(9)
+  head.push({ n: `ほか${rest.length}品目`, a: rest.reduce((s, x) => s + (x.a || 0), 0) })
+  return head
 }
 
 async function upsertDocs(table: 'crm_docs' | 'finance_docs', rows: DocRow[]) {
@@ -364,8 +376,8 @@ async function syncInvoices(from: string, to: string, summary: SyncSummary) {
         payment: b.payment_status || '',
         total: Math.round(num(b.total_price)),
         itemCount: (b.items ?? []).length,
-        // 品目名・詳細とタグ。件名が「◯月分ご請求」のように抽象的な請求書でも、CRM がサービスを判定する手がかりになる。
-        // 行を軽く保つため、品目は最大5件・各40文字まで
+        // 品目名・詳細・金額とタグ。件名が「◯月分ご請求」のように抽象的な請求書でも、CRM がサービスを判定する手がかりになる。
+        // 品目の金額は、複数サービスの請求書をサービスごとに分けるのに使う。品目は最大10件・各40文字まで
         items: compactItems(b.items),
         tags: (b.tag_names ?? []).map((t) => String(t).trim()).filter(Boolean).slice(0, 5),
       },
