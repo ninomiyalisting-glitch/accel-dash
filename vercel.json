@@ -3,6 +3,10 @@
     {
       "path": "/api/mf/sync",
       "schedule": "0 21 * * *"
+    },
+    {
+      "path": "/api/receivables/notify",
+      "schedule": "0 1 * * *"
     }
   ]
 }

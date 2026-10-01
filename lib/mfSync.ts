@@ -13,6 +13,7 @@
  */
 import { supabaseAdmin } from './supabaseAdmin'
 import { mfGet, sleep, MF_INVOICE_BASE, MF_ACCOUNTING_BASE } from './mf'
+import { syncReceivables, notifyReceivables } from './receivables'
 
 /* ---------- MF 側の型（使う項目だけ） ---------- */
 interface Billing {
@@ -119,6 +120,8 @@ export interface SyncSummary {
     journalsTotal: number
   }
   warnings: string[]
+  receivables?: unknown
+  notify?: unknown
 }
 
 const CHUNK = 200
@@ -501,6 +504,19 @@ export async function runSync(opts: { from: string; to: string; trigger: 'manual
   try {
     if (opts.invoices !== false) await syncInvoices(from, to, summary)
     if (opts.journals !== false) await syncJournals(from, to, summary)
+    // 未入金管理：期限を過ぎた請求書を入れる・MFで入金済みになったものを移す・入金の候補を付ける。失敗しても同期自体は成功扱い
+    if (opts.invoices !== false) {
+      try {
+        summary.receivables = await syncReceivables()
+      } catch (e) {
+        summary.warnings.push(`未入金管理：${e instanceof Error ? e.message : String(e)}`)
+      }
+      try {
+        summary.notify = await notifyReceivables()
+      } catch (e) {
+        summary.warnings.push(`チャットワーク通知：${e instanceof Error ? e.message : String(e)}`)
+      }
+    }
     if (run?.id) {
       await supabaseAdmin
         .from('mf_sync_runs')
