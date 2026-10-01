@@ -56,6 +56,10 @@ interface Recv {
   candidates?: Candidate[]
   dismissed?: string[]
   deposit?: Candidate
+  /** 分割払いなどの一部入金。未入金額 ＝ amount − payments の合計 */
+  payments?: { d: string; amount: number; by?: string; memo?: string; notified?: boolean; auto?: boolean }[]
+  /** 消し込みに使った入金（日付|金額|摘要）。候補に出さない */
+  deposits?: string[]
   openedAt?: string
   createdAt?: string
   updatedAt?: string
@@ -70,6 +74,9 @@ const PAID_RE = /入金済|振込済|消込済/
 const BANK_RE = /預金|銀行|UFJ|ＵＦＪ|信金|信用金庫|信組|ゆうちょ|郵便|PayPay|ペイペイ|楽天|住信|みずほ|三井住友|りそな|現金|口座|Bank/i
 const CHUNK = 200
 const CRM_URL = 'https://crm.accel-dash.com/#/receivables'
+const paidSum = (r: Recv) => (r.payments ?? []).reduce((t, p) => t + (Number(p.amount) || 0), 0)
+/** 未入金額（入金済み・取り下げは 0） */
+export const remaining = (r: Recv) => (r.status !== 'open' ? 0 : Math.max(0, Math.round((Number(r.amount) || 0) - paidSum(r))))
 
 /* ---------- 日付（日本時間） ---------- */
 export function jstToday(now = new Date()) {
@@ -279,16 +286,21 @@ export async function syncReceivables(now = new Date()): Promise<RecvSummary> {
       }
     }
     // すでに別の未入金の消し込みに使った入金は候補にしない
-    const used = new Set([...recs.values()].filter((r) => r.deposit).map((r) => [r.deposit!.d, r.deposit!.amount, r.deposit!.memo || ''].join('|')))
+    const used = new Set<string>()
+    for (const r of recs.values()) {
+      if (r.deposit) used.add([r.deposit.d, r.deposit.amount, r.deposit.memo || ''].join('|'))
+      for (const k of r.deposits ?? []) used.add(k)
+    }
     for (const r of open) {
-      const amt = Math.round(Number(r.amount))
+      // 請求金額と同じ入金に加えて、一部入金があるものは未入金額と同じ入金も探す
+      const amts = [...new Set([Math.round(Number(r.amount)), remaining(r)].filter((x) => x > 0))]
       const base = r.billingDate || (r.dueDate ? isoOf(new Date(dayOf(r.dueDate).getTime() - 60 * 86400000)) : '')
       const from = base ? isoOf(new Date(dayOf(base).getTime() - 7 * 86400000)) : ''
       const dismissed = new Set(r.dismissed ?? [])
       const c = r.customerId ? custs.get(r.customerId) : undefined
       const names = [r.name, r.partner, c?.name, c?.kana].filter(Boolean).map((t) => kana(String(t)))
       const due = r.dueDate || r.billingDate || today
-      const list = (byAmount.get(amt) ?? [])
+      const list = amts.flatMap((a) => byAmount.get(a) ?? [])
         .filter((x) => (!from || x.d >= from) && !used.has(x.key) && !dismissed.has(x.key))
         .map((x) => {
           const t = kana(x.memo + x.partner)
@@ -329,15 +341,16 @@ async function postChatwork(roomId: string, token: string, body: string) {
 
 export function reminderText(list: Recv[], today: string, day: number) {
   const open = list.filter((r) => r.status === 'open').sort((a, b) => String(a.dueDate || '9999').localeCompare(String(b.dueDate || '9999')))
-  const total = open.reduce((s, r) => s + (Number(r.amount) || 0), 0)
+  const total = open.reduce((s, r) => s + remaining(r), 0)
   const late = open.filter((r) => r.dueDate && r.dueDate < today)
   const lines = open.slice(0, 60).map((r) => {
     const over = r.dueDate && r.dueDate < today ? Math.floor((dayOf(today).getTime() - dayOf(r.dueDate).getTime()) / 86400000) : 0
-    return `・${honor(r.name)}　${yen(Number(r.amount) || 0)}　期限 ${md(r.dueDate)}${over ? `（${over}日超過）` : ''}${r.ownerName ? `　担当：${r.ownerName}` : ''}${r.kind || r.item ? `　${[r.kind, r.item].filter(Boolean).join('・')}` : ''}`
+    const rest = remaining(r), bill = Number(r.amount) || 0
+    return `・${honor(r.name)}　${yen(rest)}${rest !== bill ? `（請求 ${yen(bill)}）` : ''}　期限 ${md(r.dueDate)}${over ? `（${over}日超過）` : ''}${r.ownerName ? `　担当：${r.ownerName}` : ''}${r.kind || r.item ? `　${[r.kind, r.item].filter(Boolean).join('・')}` : ''}`
   })
   const more = open.length > 60 ? `\n…ほか ${open.length - 60} 件` : ''
   return `[info][title]未入金のリマインド（${Number(today.slice(5, 7))}月・${day}営業日目）[/title]` +
-    `未入金 ${open.length} 件・合計 ${yen(total)}（うち入金期限を過ぎたもの ${late.length} 件）\n` +
+    `未入金 ${open.length} 件・未入金額の合計 ${yen(total)}（うち入金期限を過ぎたもの ${late.length} 件）\n` +
     `担当の方は状況の確認と、必要ならお客様へのご連絡をお願いします。\n\n${lines.join('\n')}${more}\n\n一覧：${CRM_URL}[/info]`
 }
 export function paidText(list: Recv[]) {
@@ -353,7 +366,7 @@ export async function notifyReceivables(now = new Date()) {
   if (!cw.enabled || !roomId || !token) return { skipped: true, reason: !token ? 'CHATWORK_API_TOKEN が未設定' : !roomId ? 'ルームID が未設定' : '通知がオフ' }
   const today = jstToday(now)
   const recs = (await loadAll('crm_docs', 'receivables')).map((r) => ({ ...(r.data as unknown as Recv), id: r.id }))
-  const out = { paidSent: 0, remind: false }
+  const out = { paidSent: 0, partialSent: 0, remind: false }
 
   // 入金のお知らせ（14日より前に入金済みになったものは知らせずに印だけ消す）
   const pending = recs.filter((r) => r.status === 'paid' && r.notifyPaid)
@@ -363,6 +376,21 @@ export async function notifyReceivables(now = new Date()) {
     if (fresh.length) await postChatwork(roomId, token, paidText(fresh))
     out.paidSent = fresh.length
     await saveRecvs(pending.map((r) => ({ ...r, notifyPaid: false, notifiedPaidAt: today })))
+  }
+  // 一部入金のお知らせ（未入金のまま、新しく記録された入金）
+  const limit2 = isoOf(new Date(dayOf(today).getTime() - 14 * 86400000))
+  const partial = recs.filter((r) => r.status === 'open' && (r.payments ?? []).some((p) => !p.notified))
+  if (partial.length) {
+    const lines: string[] = []
+    for (const r of partial) {
+      for (const p of r.payments ?? []) {
+        if (p.notified || p.by === 'adjust' || (p.d && p.d < limit2)) continue
+        lines.push(`・${honor(r.name)}　${yen(Number(p.amount) || 0)} 入金（${md(p.d)}）　残り ${yen(remaining(r))}${r.ownerName ? `　担当：${r.ownerName}` : ''}`)
+      }
+    }
+    if (lines.length) await postChatwork(roomId, token, `[info][title]一部入金がありました（${lines.length} 件）[/title]${lines.join('\n')}\n\n一覧：${CRM_URL}[/info]`)
+    out.partialSent = lines.length
+    await saveRecvs(partial.map((r) => ({ ...r, payments: (r.payments ?? []).map((p) => ({ ...p, notified: true })) })))
   }
   // 毎月 N 営業日目のリマインド
   const ym = today.slice(0, 7)
