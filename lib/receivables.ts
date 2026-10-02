@@ -89,7 +89,8 @@ interface Settings {
   waitingBank?: number
   /** 名前が合わなくても、金額が 1 対 1 なら照合する（既定 true） */
   matchUnique?: boolean
-  chatwork?: { enabled?: boolean; roomId?: string; remindDay?: number; lastRemind?: string }
+  /** notifyAfterDays：入金期限からこの営業日数より後に入った入金だけ「入金されました」を送る（既定 3） */
+  chatwork?: { enabled?: boolean; roomId?: string; remindDay?: number; lastRemind?: string; notifyAfterDays?: number }
 }
 
 const PAID_RE = /入金済|振込済|消込済/
@@ -255,7 +256,8 @@ export async function syncReceivables(now = new Date()): Promise<RecvSummary> {
   const today = jstToday(now)
   const st = (await loadMeta<Settings>('receivables')) ?? {}
   const autoFrom = normDate(st.autoFrom) || '2026-09-01'
-  const grace = Number.isFinite(Number(st.graceDays)) ? Math.max(0, Math.min(30, Number(st.graceDays))) : 3
+  // 待つ営業日数（0＝入金期限の翌日に未入金に入れる）
+  const grace = st.graceDays != null && Number.isFinite(Number(st.graceDays)) ? Math.max(0, Math.min(30, Number(st.graceDays))) : 0
   const autoMatch = st.autoMatch !== false
   const skip = new Set((st.skipNames ?? []).map((n) => kana(String(n))).filter(Boolean))
   const matchUnique = st.matchUnique !== false
@@ -591,11 +593,14 @@ export async function notifyReceivables(now = new Date()) {
   const recs = (await loadAll('crm_docs', 'receivables')).map((r) => ({ ...(r.data as unknown as Recv), id: r.id }))
   const out = { paidSent: 0, partialSent: 0, remind: false }
 
+  // 入金期限から N 営業日を過ぎてから入った入金だけ知らせる（期限すぐの入金は通常の範囲なので送らない）
+  const after = Number.isFinite(Number(cw.notifyAfterDays)) ? Math.max(0, Math.min(60, Number(cw.notifyAfterDays))) : 3
+  const lateEnough = (due: string | undefined, d: string | undefined) => !due || !d || d > addBusinessDays(due, after)
   // 入金のお知らせ（14日より前に入金済みになったものは知らせずに印だけ消す）
   const pending = recs.filter((r) => r.status === 'paid' && r.notifyPaid)
   if (pending.length) {
     const limit = isoOf(new Date(dayOf(today).getTime() - 14 * 86400000))
-    const fresh = pending.filter((r) => (r.paidAt || today) >= limit)
+    const fresh = pending.filter((r) => (r.paidAt || today) >= limit && lateEnough(r.dueDate, r.paidAt || today))
     if (fresh.length) await postChatwork(roomId, token, paidText(fresh))
     out.paidSent = fresh.length
     await saveRecvs(pending.map((r) => ({ ...r, notifyPaid: false, notifiedPaidAt: today })))
@@ -607,7 +612,7 @@ export async function notifyReceivables(now = new Date()) {
     const lines: string[] = []
     for (const r of partial) {
       for (const p of r.payments ?? []) {
-        if (p.notified || p.by === 'adjust' || (p.d && p.d < limit2)) continue
+        if (p.notified || p.by === 'adjust' || (p.d && p.d < limit2) || !lateEnough(r.dueDate, p.d)) continue
         lines.push(`・${honor(r.name)}　${yen(Number(p.amount) || 0)} 入金（${md(p.d)}）　${remaining(r) < 0 ? `過入金 ${yen(-remaining(r))}` : `残り ${yen(remaining(r))}`}${r.ownerName ? `　担当：${r.ownerName}` : ''}`)
       }
     }
@@ -617,7 +622,7 @@ export async function notifyReceivables(now = new Date()) {
   }
   // 毎月 N 営業日目のリマインド
   const ym = today.slice(0, 7)
-  const day = Math.max(1, Math.min(15, Number(cw.remindDay) || 5))
+  const day = Math.max(1, Math.min(15, Number(cw.remindDay) || 3))
   if (nthBusinessDay(ym, day) === today && cw.lastRemind !== ym) {
     await postChatwork(roomId, token, reminderText(recs, today, day))
     await saveSettings({ ...st, chatwork: { ...cw, lastRemind: ym } })
