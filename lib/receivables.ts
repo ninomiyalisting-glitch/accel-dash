@@ -78,6 +78,8 @@ interface Settings {
   graceDays?: number
   /** 銀行の入金と自動で照合する（既定 true） */
   autoMatch?: boolean
+  /** 未入金チェックをしない取引先（毎月小切手払いなど）。顧客名か請求書の取引先名で照らし合わせる */
+  skipNames?: string[]
   /** 同期が書く：銀行の入金（会計の仕訳）がいつの分まで入っているか／その待ちの件数 */
   bankThrough?: string
   waitingBank?: number
@@ -249,6 +251,7 @@ export async function syncReceivables(now = new Date()): Promise<RecvSummary> {
   const autoFrom = normDate(st.autoFrom) || '2026-09-01'
   const grace = Number.isFinite(Number(st.graceDays)) ? Math.max(0, Math.min(30, Number(st.graceDays))) : 3
   const autoMatch = st.autoMatch !== false
+  const skip = new Set((st.skipNames ?? []).map((n) => kana(String(n))).filter(Boolean))
   const matchUnique = st.matchUnique !== false
 
   const [revRows, recRows, custRows, indRows, master] = await Promise.all([
@@ -300,6 +303,7 @@ export async function syncReceivables(now = new Date()): Promise<RecvSummary> {
     const prev = recs.get(id)
     if (!prev) {
       if (paid || amount <= 0) continue
+      if (skip.size && [name, mf.partner].some((n) => n && skip.has(kana(String(n))))) continue // 小切手払いなど、チェックしない取引先
       const make = (): Recv => ({
         id, source: 'mf', status: 'open', invoiceId: String(mf.id ?? ''), revenueId: row.id,
         customerId: r.customerId || '', individualId: r.individualId || '', name, partner: String(mf.partner ?? ''),
