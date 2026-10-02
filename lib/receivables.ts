@@ -11,6 +11,7 @@
  *       ・名前が合う入金がちょうど 1 件（取引先名、または以前その会社の入金だった振込名義）
  *       ・金額が 1 対 1（その金額の入金がその請求にしか当てはまらず、その請求にも 1 件だけ）
  *     期限内に入金があったものは未入金リストに入れず、入金済みに「期限内」として記録だけ残す
+ *     銀行の明細が会計（仕訳）にまだ入っていない日の分は、入金されていても見えないので、入るまで未入金にしない
  *  3) 入金の候補：自動で決めきれないものは、同じ金額の入金を候補として付ける（決めるのは人）
  *  4) チャットワーク：入金されたら知らせる／毎月 N 営業日目に未入金リストを送る（notifyReceivables）
  *
@@ -77,6 +78,9 @@ interface Settings {
   graceDays?: number
   /** 銀行の入金と自動で照合する（既定 true） */
   autoMatch?: boolean
+  /** 同期が書く：銀行の入金（会計の仕訳）がいつの分まで入っているか／その待ちの件数 */
+  bankThrough?: string
+  waitingBank?: number
   /** 名前が合わなくても、金額が 1 対 1 なら照合する（既定 true） */
   matchUnique?: boolean
   chatwork?: { enabled?: boolean; roomId?: string; remindDay?: number; lastRemind?: string }
@@ -212,6 +216,10 @@ export interface RecvSummary {
   autoPaid: number
   /** 期限内に入金があり、未入金リストに入れずに済んだもの */
   onTime: number
+  /** 銀行の入金（会計の仕訳）がいつの分まで入っているか。これより後が期限＋待つ日数の請求は、まだ未入金にしない */
+  bankThrough: string
+  /** 銀行の仕訳がまだ入っていないので、未入金にするのを待っている請求 */
+  waitingBank: number
 }
 type Dep = Candidate & { key: string }
 interface Target {
@@ -224,7 +232,8 @@ interface Target {
   names: string[]
   aliases: Set<string>
   dismissed: Set<string>
-  passedGrace: boolean
+  /** 入金期限＋待つ営業日数（この日を過ぎて、銀行の仕訳もこの日まで入っていたら未入金にする） */
+  graceEnd: string
 }
 const depKey = (d: { d: string; amount: number; memo?: string }) => [d.d, d.amount, d.memo || ''].join('|')
 /** 名前が「ほぼ確実」に合っているか（漢字の取引先名どうし、または以前その会社の入金だった振込名義） */
@@ -254,7 +263,7 @@ export async function syncReceivables(now = new Date()): Promise<RecvSummary> {
   const ownerName = new Map((master?.owners ?? []).map((o) => [o.id, o.name]))
   const recs = new Map(recRows.map((r) => [r.id, { ...(r.data as unknown as Recv), id: r.id }]))
   const changed = new Map<string, Recv>()
-  const sum: RecvSummary = { created: 0, paid: 0, updated: 0, withCandidates: 0, autoPaid: 0, onTime: 0 }
+  const sum: RecvSummary = { created: 0, paid: 0, updated: 0, withCandidates: 0, autoPaid: 0, onTime: 0, bankThrough: '', waitingBank: 0 }
   const targets: Target[] = []
 
   // 以前の入金（照合済み）の振込名義 → 顧客。次からはこの名義なら社名が合わなくても同じ会社とみなす
@@ -304,7 +313,7 @@ export async function syncReceivables(now = new Date()): Promise<RecvSummary> {
         names: namesOf([name, mf.partner, c?.kana]),
         aliases: aliasOf.get(r.customerId || r.individualId || '') ?? new Set(),
         dismissed: new Set(),
-        passedGrace: today > addBusinessDays(due, grace),
+        graceEnd: addBusinessDays(due, grace),
       })
       continue
     }
@@ -331,10 +340,15 @@ export async function syncReceivables(now = new Date()): Promise<RecvSummary> {
   const fromYm = starts[0] < ymAdd(thisYm, -36) ? ymAdd(thisYm, -36) : ymAdd(starts[0], -1)
   const jdocs = await loadAll('finance_docs', 'journal', { idFrom: fromYm, idTo: thisYm })
   const byAmount = new Map<number, Dep[]>()
+  let bankThrough = ''
   for (const doc of jdocs) {
     const rows = ((doc.data as { rows?: Record<string, unknown>[] }).rows ?? [])
     for (const x of rows) {
       const ca = String(x.ca ?? ''), da = String(x.da ?? '')
+      if (BANK_RE.test(da) || BANK_RE.test(ca)) {
+        const d = normDate(x.d)
+        if (d > bankThrough && d <= today) bankThrough = d
+      }
       // 入金＝借方が預金・現金で、貸方が売掛金（または売上）。振込手数料など（借方が費用）は入金ではない
       if (!(ca === '売掛金' || /売上/.test(ca)) || !BANK_RE.test(da)) continue
       const amt = Math.round(Number(x.cam) || 0)
@@ -365,7 +379,7 @@ export async function syncReceivables(now = new Date()): Promise<RecvSummary> {
       names: namesOf([r.name, r.partner, c?.name, c?.kana]),
       aliases: aliasOf.get(r.customerId || r.individualId || '') ?? new Set(),
       dismissed: new Set(r.dismissed ?? []),
-      passedGrace: true,
+      graceEnd: '',
     })
   }
   targets.sort((a, b) => a.due.localeCompare(b.due) || a.id.localeCompare(b.id))
@@ -418,7 +432,10 @@ export async function syncReceivables(now = new Date()): Promise<RecvSummary> {
       recs.set(t.id, rec)
       changed.set(t.id, rec)
       sum.onTime++
-    } else if (t.passedGrace) {
+    } else if (t.graceEnd && today > t.graceEnd && bankThrough < t.graceEnd) {
+      // 期限は過ぎたが、銀行の明細がまだ会計に入っていない（入金されていても見えない）。入るまで未入金にしない
+      sum.waitingBank++
+    } else if (t.graceEnd && today > t.graceEnd) {
       const rec = t.make!()
       recs.set(t.id, rec)
       changed.set(t.id, rec)
@@ -455,6 +472,12 @@ export async function syncReceivables(now = new Date()): Promise<RecvSummary> {
   }
 
   if (changed.size) await saveRecvs([...changed.values()])
+  sum.bankThrough = bankThrough
+  // 画面に「銀行の入金は ◯/◯ まで確認済み」と出すために残す
+  if (st.bankThrough !== bankThrough || (st.waitingBank ?? 0) !== sum.waitingBank) {
+    const cur = (await loadMeta<Settings>('receivables')) ?? {}
+    await saveSettings({ ...cur, bankThrough, waitingBank: sum.waitingBank })
+  }
   return sum
 }
 
