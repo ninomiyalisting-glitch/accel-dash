@@ -4,7 +4,7 @@ import { notifyReceivables } from '@/lib/receivables'
 export const dynamic = 'force-dynamic'
 
 /**
- * Vercel Cron（毎日 10:00 JST）。未入金管理のチャットワーク通知だけを送る。
+ * Vercel Cron（毎日 10:30 JST）。未入金管理のチャットワーク通知だけを送る（10:00 の MF 同期のあとにも送るので、その取りこぼし用）。
  *  - 入金済みになった未入金のお知らせ（画面で「入金済みにする」を押したものも含む）
  *  - 毎月 N 営業日目の未入金リストのリマインド
  * 朝の MF 同期の最後にも同じ処理が動く。

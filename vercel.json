@@ -2,11 +2,11 @@
   "crons": [
     {
       "path": "/api/mf/sync",
-      "schedule": "0 21 * * *"
+      "schedule": "0 1 * * *"
     },
     {
       "path": "/api/receivables/notify",
-      "schedule": "0 1 * * *"
+      "schedule": "30 1 * * *"
     }
   ]
 }

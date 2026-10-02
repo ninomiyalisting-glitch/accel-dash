@@ -292,7 +292,7 @@ export default function MfPage() {
                 </button>
               </div>
               <p className="mt-3 text-xs text-black/50">
-                自動同期：{status.cronConfigured ? '毎日 6:00 頃に直近 3 か月分を更新' : 'CRON_SECRET が未設定のため止まっています'}
+                自動同期：{status.cronConfigured ? '毎日 10:00 頃に直近 3 か月分を更新' : 'CRON_SECRET が未設定のため止まっています'}
               </p>
 
               {result && <ResultView s={result} />}
