@@ -330,7 +330,7 @@ const yen = (v: number) => `${Math.round(v).toLocaleString('ja-JP')}円`
 const md = (iso?: string) => (iso ? `${Number(iso.slice(5, 7))}/${Number(iso.slice(8, 10))}` : '—')
 const honor = (n?: string) => (n && !/(様|御中|殿|さん|氏)$/.test(n) ? `${n}様` : n || '（名前なし）')
 
-async function postChatwork(roomId: string, token: string, body: string) {
+export async function postChatwork(roomId: string, token: string, body: string) {
   const res = await fetch(`https://api.chatwork.com/v2/rooms/${encodeURIComponent(roomId)}/messages`, {
     method: 'POST',
     headers: { 'X-ChatWorkToken': token, 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -349,13 +349,13 @@ export function reminderText(list: Recv[], today: string, day: number) {
     return `・${honor(r.name)}　${yen(rest)}${rest !== bill ? `（請求 ${yen(bill)}）` : ''}　期限 ${md(r.dueDate)}${over ? `（${over}日超過）` : ''}${r.ownerName ? `　担当：${r.ownerName}` : ''}${r.kind || r.item ? `　${[r.kind, r.item].filter(Boolean).join('・')}` : ''}`
   })
   const more = open.length > 60 ? `\n…ほか ${open.length - 60} 件` : ''
-  return `[info][title]未入金のリマインド（${Number(today.slice(5, 7))}月・${day}営業日目）[/title]` +
+  return `[info][title]【アクセルダッシュ】未入金のリマインド（${Number(today.slice(5, 7))}月・${day}営業日目）[/title]` +
     `未入金 ${open.length} 件・未入金額の合計 ${yen(total)}（うち入金期限を過ぎたもの ${late.length} 件）\n` +
     `担当の方は状況の確認と、必要ならお客様へのご連絡をお願いします。\n\n${lines.join('\n')}${more}\n\n一覧：${CRM_URL}[/info]`
 }
 export function paidText(list: Recv[]) {
   const lines = list.map((r) => `・${honor(r.name)}　${yen(Number(r.amount) || 0)}　入金 ${md(r.paidAt)}${r.ownerName ? `　担当：${r.ownerName}` : ''}${r.kind || r.item ? `　${[r.kind, r.item].filter(Boolean).join('・')}` : ''}`)
-  return `[info][title]入金されました（未入金リストから ${list.length} 件）[/title]${lines.join('\n')}\n\n一覧：${CRM_URL}[/info]`
+  return `[info][title]【アクセルダッシュ】入金されました（未入金リストから ${list.length} 件）[/title]${lines.join('\n')}\n\n一覧：${CRM_URL}[/info]`
 }
 
 export async function notifyReceivables(now = new Date()) {
@@ -388,7 +388,7 @@ export async function notifyReceivables(now = new Date()) {
         lines.push(`・${honor(r.name)}　${yen(Number(p.amount) || 0)} 入金（${md(p.d)}）　残り ${yen(remaining(r))}${r.ownerName ? `　担当：${r.ownerName}` : ''}`)
       }
     }
-    if (lines.length) await postChatwork(roomId, token, `[info][title]一部入金がありました（${lines.length} 件）[/title]${lines.join('\n')}\n\n一覧：${CRM_URL}[/info]`)
+    if (lines.length) await postChatwork(roomId, token, `[info][title]【アクセルダッシュ】一部入金がありました（${lines.length} 件）[/title]${lines.join('\n')}\n\n一覧：${CRM_URL}[/info]`)
     out.partialSent = lines.length
     await saveRecvs(partial.map((r) => ({ ...r, payments: (r.payments ?? []).map((p) => ({ ...p, notified: true })) })))
   }
