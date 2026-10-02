@@ -17,6 +17,7 @@
  *
  * 画面で手入力した項目（メモ・入金予定・担当者など）は上書きしない。
  */
+import { createHash } from 'crypto'
 import { supabaseAdmin } from './supabaseAdmin'
 
 interface DocRow {
@@ -34,8 +35,11 @@ interface Candidate {
 }
 interface Recv {
   id: string
-  source: 'mf' | 'manual'
-  status: 'open' | 'paid' | 'cancelled'
+  source: 'mf' | 'manual' | 'deposit'
+  /** nobill＝請求書のない入金（銀行に入金があったのに、同じ金額の請求書が見つからない） */
+  status: 'open' | 'paid' | 'cancelled' | 'nobill'
+  payer?: string
+  checked?: boolean
   invoiceId?: string
   revenueId?: string
   customerId?: string
@@ -93,8 +97,8 @@ const BANK_RE = /預金|銀行|UFJ|ＵＦＪ|信金|信用金庫|信組|ゆう�
 const CHUNK = 200
 const CRM_URL = 'https://crm.accel-dash.com/#/receivables'
 const paidSum = (r: Recv) => (r.payments ?? []).reduce((t, p) => t + (Number(p.amount) || 0), 0)
-/** 未入金額（入金済み・取り下げは 0） */
-export const remaining = (r: Recv) => (r.status !== 'open' ? 0 : Math.max(0, Math.round((Number(r.amount) || 0) - paidSum(r))))
+/** 未入金額（入金済み・取り下げは 0）。入金が請求より多いとマイナス（過入金） */
+export const remaining = (r: Recv) => (r.status !== 'open' ? 0 : Math.round((Number(r.amount) || 0) - paidSum(r)))
 
 /* ---------- 日付（日本時間） ---------- */
 export function jstToday(now = new Date()) {
@@ -222,6 +226,8 @@ export interface RecvSummary {
   bankThrough: string
   /** 銀行の仕訳がまだ入っていないので、未入金にするのを待っている請求 */
   waitingBank: number
+  /** 請求書のない入金として新しく記録したもの */
+  nobill: number
 }
 type Dep = Candidate & { key: string }
 interface Target {
@@ -266,7 +272,7 @@ export async function syncReceivables(now = new Date()): Promise<RecvSummary> {
   const ownerName = new Map((master?.owners ?? []).map((o) => [o.id, o.name]))
   const recs = new Map(recRows.map((r) => [r.id, { ...(r.data as unknown as Recv), id: r.id }]))
   const changed = new Map<string, Recv>()
-  const sum: RecvSummary = { created: 0, paid: 0, updated: 0, withCandidates: 0, autoPaid: 0, onTime: 0, bankThrough: '', waitingBank: 0 }
+  const sum: RecvSummary = { created: 0, paid: 0, updated: 0, withCandidates: 0, autoPaid: 0, onTime: 0, bankThrough: '', waitingBank: 0, nobill: 0 }
   const targets: Target[] = []
 
   // 以前の入金（照合済み）の振込名義 → 顧客。次からはこの名義なら社名が合わなくても同じ会社とみなす
@@ -344,6 +350,7 @@ export async function syncReceivables(now = new Date()): Promise<RecvSummary> {
   const fromYm = starts[0] < ymAdd(thisYm, -36) ? ymAdd(thisYm, -36) : ymAdd(starts[0], -1)
   const jdocs = await loadAll('finance_docs', 'journal', { idFrom: fromYm, idTo: thisYm })
   const byAmount = new Map<number, Dep[]>()
+  const keyCount = new Map<string, number>() // 同じ日・同じ金額・同じ名義の入金が何口もあるとき（2 口目から #2, #3 を付けて区別する）
   let bankThrough = ''
   for (const doc of jdocs) {
     const rows = ((doc.data as { rows?: Record<string, unknown>[] }).rows ?? [])
@@ -358,7 +365,9 @@ export async function syncReceivables(now = new Date()): Promise<RecvSummary> {
       const amt = Math.round(Number(x.cam) || 0)
       if (amt <= 0) continue
       const dep: Dep = { d: normDate(x.d), amount: amt, memo: String(x.memo ?? '').trim(), partner: [String(x.csub ?? ''), String(x.partner ?? '')].filter(Boolean).join('・'), account: da, score: 0, key: '' }
-      dep.key = depKey(dep)
+      const base = depKey(dep), n = (keyCount.get(base) ?? 0) + 1
+      keyCount.set(base, n)
+      dep.key = n > 1 ? `${base}#${n}` : base
       const list = byAmount.get(amt) ?? []
       list.push(dep)
       byAmount.set(amt, list)
@@ -366,14 +375,34 @@ export async function syncReceivables(now = new Date()): Promise<RecvSummary> {
   }
   // すでに別の未入金の消し込みに使った入金は使わない
   const used = new Set<string>()
+  // 画面や手作業で記録した入金は、摘要の書き方（「振込1 」の有無など）が仕訳と少し違うことがあるので、日付と金額が同じで名義が含まれていれば同じ入金とみなす
+  const usedLoose = new Map<string, string[]>()
+  const markLoose = (k: string) => {
+    const [d, a, ...m] = k.replace(/#\d+$/, '').split('|')
+    const memo = kana(m.join('|'))
+    const l = usedLoose.get(`${d}|${a}`) ?? []
+    l.push(memo)
+    usedLoose.set(`${d}|${a}`, l)
+  }
   for (const r of recs.values()) {
-    if (r.deposit) used.add(depKey(r.deposit))
-    for (const k of r.deposits ?? []) used.add(k)
+    if (r.deposit) { used.add(depKey(r.deposit)); markLoose(depKey(r.deposit)) }
+    for (const k of r.deposits ?? []) { used.add(k); markLoose(k) }
+  }
+  const isUsed = (x: Dep) => {
+    if (used.has(x.key)) return true
+    const l = usedLoose.get(`${x.d}|${x.amount}`)
+    if (!l) return false
+    const m = kana(x.memo)
+    const i = l.findIndex((u) => u === m || (u.length >= 2 && m.includes(u)) || (m.length >= 2 && u.includes(m)))
+    if (i < 0) return false
+    l.splice(i, 1) // 同じ名義・同じ金額が何口もあるときは 1 口ずつ
+    used.add(x.key)
+    return true
   }
 
   /* ---- 2') 銀行の入金と自動で照合 ---- */
   for (const r of openRecs()) {
-    if (r.keepOpen) continue
+    if (r.keepOpen || remaining(r) <= 0) continue
     const c = r.customerId ? custs.get(r.customerId) : undefined
     const base = r.source === 'manual' && r.openedAt
       ? isoOf(new Date(dayOf(r.openedAt).getTime() - 14 * 86400000))
@@ -387,7 +416,7 @@ export async function syncReceivables(now = new Date()): Promise<RecvSummary> {
     })
   }
   targets.sort((a, b) => a.due.localeCompare(b.due) || a.id.localeCompare(b.id))
-  const candOf = (t: Target) => (byAmount.get(t.amount) ?? []).filter((x) => (!t.from || x.d >= t.from) && x.d <= today && !used.has(x.key) && !t.dismissed.has(x.key))
+  const candOf = (t: Target) => (byAmount.get(t.amount) ?? []).filter((x) => (!t.from || x.d >= t.from) && x.d <= today && !isUsed(x) && !t.dismissed.has(x.key))
   const hit = new Map<string, { dep: Dep; by: 'name' | 'amount' }>()
   if (autoMatch) {
     // (1) 名前が合うもの：期限の早い請求から、名前が合う入金がちょうど 1 件のときだけ
@@ -448,7 +477,9 @@ export async function syncReceivables(now = new Date()): Promise<RecvSummary> {
   }
 
   /* ---- 3) 入金の候補（自動で決めきれないもの。決めるのは人） ---- */
+  const candKeys = new Set<string>()
   for (const r of openRecs()) {
+    if (remaining(r) <= 0) continue // 過入金（入金が請求より多い）は候補を出さない
     const amts = [...new Set([Math.round(Number(r.amount)), remaining(r)].filter((x) => x > 0))]
     const base = r.billingDate || (r.dueDate ? isoOf(new Date(dayOf(r.dueDate).getTime() - 60 * 86400000)) : '')
     const from = base ? isoOf(new Date(dayOf(base).getTime() - 7 * 86400000)) : ''
@@ -458,7 +489,7 @@ export async function syncReceivables(now = new Date()): Promise<RecvSummary> {
     const aliases = aliasOf.get(r.customerId || r.individualId || '') ?? new Set<string>()
     const due = r.dueDate || r.billingDate || today
     const list = amts.flatMap((a) => byAmount.get(a) ?? [])
-      .filter((x) => (!from || x.d >= from) && !used.has(x.key) && !dismissed.has(x.key))
+      .filter((x) => (!from || x.d >= from) && !isUsed(x) && !dismissed.has(x.key))
       .map((x) => {
         const t = kana(x.memo + x.partner)
         const score = aliases.has(kana(x.memo)) ? 99 : Math.max(0, ...names.map((n) => lcs(n, t)))
@@ -468,10 +499,40 @@ export async function syncReceivables(now = new Date()): Promise<RecvSummary> {
       .slice(0, 3)
       .map(({ key: _k, ...x }) => x)
     if (list.length) sum.withCandidates++
+    for (const x of list) candKeys.add(depKey(x))
     if (JSON.stringify(list) !== JSON.stringify(r.candidates ?? [])) {
       const next = { ...r, candidates: list }
       recs.set(r.id, next)
       changed.set(r.id, next)
+    }
+  }
+
+  /* ---- 5) 請求書のない入金：同じ金額の請求書（MF・入金状況は問わない）が近い日付に無く、どの未入金にも使っていない入金 ---- */
+  const invByAmount = new Map<number, string[]>()
+  for (const row of revRows) {
+    const mf = ((row.data as { mf?: Record<string, unknown> }).mf ?? {})
+    const a = Math.round(Number(mf.total) || 0)
+    if (a <= 0) continue
+    const l = invByAmount.get(a) ?? []
+    l.push(normDate(mf.billingDate) || normDate(mf.dueDate))
+    invByAmount.set(a, l)
+  }
+  for (const list of byAmount.values()) {
+    for (const x of list) {
+      if (!x.d || x.d < autoFrom || isUsed(x) || candKeys.has(x.key)) continue
+      const lo = isoOf(new Date(dayOf(x.d).getTime() - 150 * 86400000)), hi = isoOf(new Date(dayOf(x.d).getTime() + 10 * 86400000))
+      if ((invByAmount.get(x.amount) ?? []).some((b) => b && b >= lo && b <= hi)) continue
+      const id = `dep-${createHash('sha1').update(x.key).digest('hex').slice(0, 16)}`
+      if (recs.has(id)) continue
+      const { key: _k, ...dep } = x
+      const rec: Recv = {
+        id, source: 'deposit', status: 'nobill', amount: x.amount, paidAt: x.d, payer: x.memo, deposit: dep, deposits: [x.key],
+        name: '', customerId: '', memo: '', checked: false, openedAt: today, createdAt: new Date().toISOString(),
+      }
+      recs.set(id, rec)
+      changed.set(id, rec)
+      used.add(x.key)
+      sum.nobill++
     }
   }
 
@@ -503,12 +564,12 @@ export async function postChatwork(roomId: string, token: string, body: string) 
 
 export function reminderText(list: Recv[], today: string, day: number) {
   const open = list.filter((r) => r.status === 'open').sort((a, b) => String(a.dueDate || '9999').localeCompare(String(b.dueDate || '9999')))
-  const total = open.reduce((s, r) => s + remaining(r), 0)
+  const total = open.reduce((s, r) => s + Math.max(0, remaining(r)), 0)
   const late = open.filter((r) => r.dueDate && r.dueDate < today)
   const lines = open.slice(0, 60).map((r) => {
     const over = r.dueDate && r.dueDate < today ? Math.floor((dayOf(today).getTime() - dayOf(r.dueDate).getTime()) / 86400000) : 0
     const rest = remaining(r), bill = Number(r.amount) || 0
-    return `・${honor(r.name)}　${yen(rest)}${rest !== bill ? `（請求 ${yen(bill)}）` : ''}　期限 ${md(r.dueDate)}${over ? `（${over}日超過）` : ''}${r.ownerName ? `　担当：${r.ownerName}` : ''}${r.kind || r.item ? `　${[r.kind, r.item].filter(Boolean).join('・')}` : ''}`
+    return `・${honor(r.name)}　${rest < 0 ? `過入金 ${yen(-rest)}` : yen(rest)}${rest !== bill ? `（請求 ${yen(bill)}）` : ''}　期限 ${md(r.dueDate)}${over ? `（${over}日超過）` : ''}${r.ownerName ? `　担当：${r.ownerName}` : ''}${r.kind || r.item ? `　${[r.kind, r.item].filter(Boolean).join('・')}` : ''}`
   })
   const more = open.length > 60 ? `\n…ほか ${open.length - 60} 件` : ''
   return `[info][title]【アクセルダッシュ】未入金のリマインド（${Number(today.slice(5, 7))}月・${day}営業日目）[/title]` +
@@ -547,7 +608,7 @@ export async function notifyReceivables(now = new Date()) {
     for (const r of partial) {
       for (const p of r.payments ?? []) {
         if (p.notified || p.by === 'adjust' || (p.d && p.d < limit2)) continue
-        lines.push(`・${honor(r.name)}　${yen(Number(p.amount) || 0)} 入金（${md(p.d)}）　残り ${yen(remaining(r))}${r.ownerName ? `　担当：${r.ownerName}` : ''}`)
+        lines.push(`・${honor(r.name)}　${yen(Number(p.amount) || 0)} 入金（${md(p.d)}）　${remaining(r) < 0 ? `過入金 ${yen(-remaining(r))}` : `残り ${yen(remaining(r))}`}${r.ownerName ? `　担当：${r.ownerName}` : ''}`)
       }
     }
     if (lines.length) await postChatwork(roomId, token, `[info][title]【アクセルダッシュ】一部入金がありました（${lines.length} 件）[/title]${lines.join('\n')}\n\n一覧：${CRM_URL}[/info]`)
