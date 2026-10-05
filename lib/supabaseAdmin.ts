@@ -1,8 +1,9 @@
 import { createClient } from '@supabase/supabase-js'
 
 // サーバー専用。service_role キーを使うので絶対にクライアントへ import しないこと。
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+// 貼り付けで紛れ込んだ空白・改行は取り除く（キーの途中に空白があるとヘッダーに載せられず、全 API が失敗する）
+const url = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').trim()
+const serviceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').replace(/\s+/g, '')
 
 export const supabaseAdmin = createClient(url, serviceKey, {
   auth: { autoRefreshToken: false, persistSession: false }
@@ -34,7 +35,13 @@ export async function requireAdmin(req: Request): Promise<AuthResult> {
   const { data, error } = await supabaseAdmin.auth.getUser(token)
 
   if (error) {
-    return { ok: false, status: 401, message: `トークンの検証に失敗しました：${error.message}` }
+    // エラー文にキーの値が入ることがあるので、画面には出さない（サーバーのログにも値は残さない）
+    const detail = (error.message || '').replace(/sb_secret_\S+|eyJ[\w.-]+/g, '［キー］')
+    console.error('[auth] getUser failed:', detail)
+    const status = (error as { status?: number }).status
+    return status && status < 500
+      ? { ok: false, status: 401, message: 'ログインの確認に失敗しました。再ログインしてください' }
+      : { ok: false, status: 500, message: 'サーバー設定エラー：Supabase のキーを確認してください（Vercel の環境変数）' }
   }
   if (!data?.user?.email) {
     return { ok: false, status: 401, message: 'ユーザー情報を取得できませんでした' }
