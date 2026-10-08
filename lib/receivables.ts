@@ -61,6 +61,8 @@ interface Recv {
   paidBy?: string
   notifyPaid?: boolean
   notifiedPaidAt?: string
+  /** 「入金されました」を送れたルーム（全ルームに送れたら消す）。at＝そのときの paidAt。入金日が変わったら送り直す */
+  cwPaidRooms?: { at: string; rooms: string[] }
   keepOpen?: boolean
   /** 自動照合の根拠：name＝名前（または以前の振込名義）、amount＝金額が 1 対 1 */
   matchedBy?: 'name' | 'amount'
@@ -70,7 +72,7 @@ interface Recv {
   dismissed?: string[]
   deposit?: Candidate
   /** 分割払いなどの一部入金。未入金額 ＝ amount − payments の合計 */
-  payments?: { d: string; amount: number; by?: string; memo?: string; notified?: boolean; auto?: boolean }[]
+  payments?: { d: string; amount: number; by?: string; memo?: string; notified?: boolean; auto?: boolean; cwRooms?: string[] }[]
   /** 消し込みに使った入金（日付|金額|摘要）。候補に出さない */
   deposits?: string[]
   openedAt?: string
@@ -89,8 +91,12 @@ interface Settings {
   waitingBank?: number
   /** 名前が合わなくても、金額が 1 対 1 なら照合する（既定 true） */
   matchUnique?: boolean
-  /** notifyAfterDays：入金期限からこの営業日数より後に入った入金だけ「入金されました」を送る（既定 3） */
-  chatwork?: { enabled?: boolean; roomId?: string; remindDay?: number; lastRemind?: string; notifyAfterDays?: number }
+  /** notifyAfterDays：入金期限からこの営業日数より後に入った入金だけ「入金されました」を送る（既定 3）
+   *  roomId：1 つ目のルーム。extraRoomIds：ほかに同じ内容を送るルーム。remindRooms：その月のリマインドを送れたルーム（全ルーム済みで lastRemind） */
+  chatwork?: {
+    enabled?: boolean; roomId?: string; extraRoomIds?: string[]; remindDay?: number; lastRemind?: string; notifyAfterDays?: number
+    remindRooms?: { ym: string; rooms: string[] }
+  }
 }
 
 const PAID_RE = /入金済|振込済|消込済/
@@ -555,6 +561,12 @@ const yen = (v: number) => `${Math.round(v).toLocaleString('ja-JP')}円`
 const md = (iso?: string) => (iso ? `${Number(iso.slice(5, 7))}/${Number(iso.slice(8, 10))}` : '—')
 const honor = (n?: string) => (n && !/(様|御中|殿|さん|氏)$/.test(n) ? `${n}様` : n || '（名前なし）')
 
+/** 送り先のルーム：roomId（1 つ目）＋ extraRoomIds。数字だけにして、空・重複は除く */
+export function chatworkRooms(cw?: Settings['chatwork']) {
+  const ids = [cw?.roomId, ...(cw?.extraRoomIds ?? [])].map((x) => String(x || '').replace(/\D/g, '')).filter(Boolean)
+  return [...new Set(ids)]
+}
+
 export async function postChatwork(roomId: string, token: string, body: string) {
   const res = await fetch(`https://api.chatwork.com/v2/rooms/${encodeURIComponent(roomId)}/messages`, {
     method: 'POST',
@@ -583,15 +595,32 @@ export function paidText(list: Recv[]) {
   return `[info][title]【アクセルダッシュ】入金されました（未入金リストから ${list.length} 件）[/title]${lines.join('\n')}\n\n一覧：${CRM_URL}[/info]`
 }
 
+/**
+ * チャットワーク通知。送り先は chatworkRooms() の全ルーム（同じ内容）。
+ * ルームごとに「送れた」を記録し、送れなかったルームにだけ次の回（10:30 の予備・翌朝）で送り直す。
+ * 送れたルームには二度送らない。
+ */
 export async function notifyReceivables(now = new Date()) {
   const st = (await loadMeta<Settings>('receivables')) ?? {}
   const cw = st.chatwork ?? {}
   const token = process.env.CHATWORK_API_TOKEN || ''
-  const roomId = String(cw.roomId || '').replace(/\D/g, '')
-  if (!cw.enabled || !roomId || !token) return { skipped: true, reason: !token ? 'CHATWORK_API_TOKEN が未設定' : !roomId ? 'ルームID が未設定' : '通知がオフ' }
+  const rooms = chatworkRooms(cw)
+  if (!cw.enabled || !rooms.length || !token) return { skipped: true, reason: !token ? 'CHATWORK_API_TOKEN が未設定' : !rooms.length ? 'ルームID が未設定' : '通知がオフ' }
   const today = jstToday(now)
   const recs = (await loadAll('crm_docs', 'receivables')).map((r) => ({ ...(r.data as unknown as Recv), id: r.id }))
-  const out = { paidSent: 0, partialSent: 0, remind: false }
+  const errors: string[] = []
+  const out = { rooms: rooms.length, paidSent: 0, partialSent: 0, remind: false, errors }
+  const allSent = (got: string[]) => rooms.every((x) => got.includes(x))
+  /** 1 ルームに送る。失敗しても止めずに記録だけして、ほかのルームへ進む */
+  const send = async (room: string, body: string) => {
+    try {
+      await postChatwork(room, token, body)
+      return true
+    } catch (e) {
+      errors.push(`ルーム ${room}：${e instanceof Error ? e.message : String(e)}`)
+      return false
+    }
+  }
 
   // 入金期限から N 営業日を過ぎてから入った入金だけ知らせる（期限すぐの入金は通常の範囲なので送らない）
   const after = Number.isFinite(Number(cw.notifyAfterDays)) ? Math.max(0, Math.min(60, Number(cw.notifyAfterDays))) : 3
@@ -600,33 +629,77 @@ export async function notifyReceivables(now = new Date()) {
   const pending = recs.filter((r) => r.status === 'paid' && r.notifyPaid)
   if (pending.length) {
     const limit = isoOf(new Date(dayOf(today).getTime() - 14 * 86400000))
-    const fresh = pending.filter((r) => (r.paidAt || today) >= limit && lateEnough(r.dueDate, r.paidAt || today))
-    if (fresh.length) await postChatwork(roomId, token, paidText(fresh))
-    out.paidSent = fresh.length
-    await saveRecvs(pending.map((r) => ({ ...r, notifyPaid: false, notifiedPaidAt: today })))
+    const isFresh = (r: Recv) => (r.paidAt || today) >= limit && lateEnough(r.dueDate, r.paidAt || today)
+    // 送れたルーム（知らせないものは全ルーム済みとして扱う）
+    const got = new Map<string, string[]>()
+    for (const r of pending) got.set(r.id, !isFresh(r) ? [...rooms] : r.cwPaidRooms && r.cwPaidRooms.at === (r.paidAt || '') ? [...r.cwPaidRooms.rooms] : [])
+    const sentIds = new Set<string>()
+    for (const room of rooms) {
+      const list = pending.filter((r) => !got.get(r.id)!.includes(room))
+      if (!list.length) continue
+      if (await send(room, paidText(list))) for (const r of list) { got.get(r.id)!.push(room); sentIds.add(r.id) }
+    }
+    out.paidSent = sentIds.size
+    await saveRecvs(pending.map((r) => {
+      const g = got.get(r.id)!
+      if (!allSent(g)) return { ...r, cwPaidRooms: { at: r.paidAt || '', rooms: g } }
+      const done: Recv = { ...r, notifyPaid: false, notifiedPaidAt: today }
+      delete done.cwPaidRooms
+      return done
+    }))
   }
   // 一部入金のお知らせ（未入金のまま、新しく記録された入金）
   const limit2 = isoOf(new Date(dayOf(today).getTime() - 14 * 86400000))
   const partial = recs.filter((r) => r.status === 'open' && (r.payments ?? []).some((p) => !p.notified))
   if (partial.length) {
-    const lines: string[] = []
-    for (const r of partial) {
-      for (const p of r.payments ?? []) {
-        if (p.notified || p.by === 'adjust' || (p.d && p.d < limit2) || !lateEnough(r.dueDate, p.d)) continue
-        lines.push(`・${honor(r.name)}　${yen(Number(p.amount) || 0)} 入金（${md(p.d)}）　${remaining(r) < 0 ? `過入金 ${yen(-remaining(r))}` : `残り ${yen(remaining(r))}`}${r.ownerName ? `　担当：${r.ownerName}` : ''}`)
+    type Pay = NonNullable<Recv['payments']>[number]
+    const toSend = (r: Recv, p: Pay) => !p.notified && p.by !== 'adjust' && !(p.d && p.d < limit2) && lateEnough(r.dueDate, p.d)
+    const sentPays = new Set<Pay>()
+    for (const room of rooms) {
+      const lines: string[] = []
+      const hit: Pay[] = []
+      for (const r of partial) {
+        for (const p of r.payments ?? []) {
+          if (!toSend(r, p) || (p.cwRooms ?? []).includes(room)) continue
+          lines.push(`・${honor(r.name)}　${yen(Number(p.amount) || 0)} 入金（${md(p.d)}）　${remaining(r) < 0 ? `過入金 ${yen(-remaining(r))}` : `残り ${yen(remaining(r))}`}${r.ownerName ? `　担当：${r.ownerName}` : ''}`)
+          hit.push(p)
+        }
+      }
+      if (!lines.length) continue
+      if (await send(room, `[info][title]【アクセルダッシュ】一部入金がありました（${lines.length} 件）[/title]${lines.join('\n')}\n\n一覧：${CRM_URL}[/info]`)) {
+        for (const p of hit) { p.cwRooms = [...(p.cwRooms ?? []), room]; sentPays.add(p) }
       }
     }
-    if (lines.length) await postChatwork(roomId, token, `[info][title]【アクセルダッシュ】一部入金がありました（${lines.length} 件）[/title]${lines.join('\n')}\n\n一覧：${CRM_URL}[/info]`)
-    out.partialSent = lines.length
-    await saveRecvs(partial.map((r) => ({ ...r, payments: (r.payments ?? []).map((p) => ({ ...p, notified: true })) })))
+    out.partialSent = sentPays.size
+    await saveRecvs(partial.map((r) => ({
+      ...r,
+      payments: (r.payments ?? []).map((p) => {
+        if (p.notified) return p
+        if (toSend(r, p) && !allSent(p.cwRooms ?? [])) return p // 送れていないルームが残っている：次の回に送り直す
+        const done = { ...p, notified: true }
+        delete done.cwRooms
+        return done
+      }),
+    })))
   }
-  // 毎月 N 営業日目のリマインド
+  // 毎月 N 営業日目のリマインド（その日のうちに、送れなかったルームにだけ送り直す）
   const ym = today.slice(0, 7)
   const day = Math.max(1, Math.min(15, Number(cw.remindDay) || 3))
   if (nthBusinessDay(ym, day) === today && cw.lastRemind !== ym) {
-    await postChatwork(roomId, token, reminderText(recs, today, day))
-    await saveSettings({ ...st, chatwork: { ...cw, lastRemind: ym } })
-    out.remind = true
+    const prev = cw.remindRooms?.ym === ym ? cw.remindRooms.rooms : []
+    const got = [...prev]
+    const text = reminderText(recs, today, day)
+    for (const room of rooms) if (!got.includes(room) && (await send(room, text))) got.push(room)
+    if (allSent(got)) {
+      const next = { ...cw, lastRemind: ym }
+      delete next.remindRooms
+      await saveSettings({ ...st, chatwork: next })
+    } else if (got.length > prev.length) {
+      await saveSettings({ ...st, chatwork: { ...cw, remindRooms: { ym, rooms: got } } })
+    }
+    out.remind = got.length > prev.length
   }
+  // 送れなかったルームがあれば、記録を保存したあとで失敗として知らせる（同期の警告・cron のエラーに出る）
+  if (errors.length) throw new Error(`送れなかったルームがあります（次の通知の回で、そのルームにだけ送り直します）：${errors.join(' / ')}`)
   return out
 }
