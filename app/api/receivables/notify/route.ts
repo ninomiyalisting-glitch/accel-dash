@@ -8,6 +8,7 @@ export const dynamic = 'force-dynamic'
  *  - 入金済みになった未入金のお知らせ（画面で「入金済みにする」を押したものも含む）
  *  - 毎月 N 営業日目の未入金リストのリマインド
  * 朝の MF 同期の最後にも同じ処理が動く。
+ * ルームが複数あるときは、ルームごとに送れたかを記録しているので、送れたルームには二度送らず、送れなかったルームにだけ送り直す。
  */
 export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET || ''
